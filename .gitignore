@@ -1,0 +1,57 @@
+# Visual Studio / .NET
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Build artifacts
+bin/
+obj/
+out/
+
+# Publish
+publish/
+
+# NuGet
+*.nupkg
+packages/
+
+# Rider
+.idea/
+
+# VS Code
+.vscode/
+
+# User secrets
+secrets.json
+appsettings.*.Secrets.json
+
+# Logs and databases
+*.log
+*.sqlite
+*.db
+TestResults/
+*.trx
+*.coverage
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Others
+*.vspscc
+*.vssscc
+
+# Ignore generated files
+**/obj/Debug/
+**/obj/Release/
+
+# Local environment files
+.env
+
+# Ignore JetBrains Rider caches
+.idea/
+*.sln.iml
+
+**/appsettings.Development.json

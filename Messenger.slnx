@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path=".gitignore" />
+    <File Path="Directory.Packages.props" />
+  </Folder>
+  <Project Path="Messenger.Api/Messenger.Api.csproj" Id="491698b7-eb9d-4c97-af6b-271cb534b3ac" />
+  <Project Path="Messenger.Core/Messenger.Core.csproj" />
+  <Project Path="Messenger.Infrastructure/Messenger.Infrastructure.csproj" />
+</Solution>
