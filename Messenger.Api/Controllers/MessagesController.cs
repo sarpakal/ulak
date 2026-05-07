@@ -112,15 +112,23 @@ namespace Messenger.Api.Controllers
 
         private async Task WriteLogAsync(string channel, string recipient, string? payload, string status)
         {
-            _db.MessageLogs.Add(new MessageLog
+            try
             {
-                Channel = channel,
-                Recipient = recipient,
-                Payload = payload,
-                Status = status,
-                CorrelationId = HttpContext.TraceIdentifier,
-            });
-            await _db.SaveChangesAsync(CancellationToken.None);
+                _db.MessageLogs.Add(new MessageLog
+                {
+                    Channel = channel,
+                    Recipient = recipient,
+                    Payload = payload,
+                    Status = status,
+                    CorrelationId = HttpContext.TraceIdentifier,
+                });
+                var saved = await _db.SaveChangesAsync(CancellationToken.None);
+                _logger.LogInformation("MessageLog saved {Count} row(s) for channel={Channel}", saved, channel);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "MessageLog write failed for channel={Channel}", channel);
+            }
         }
 
         [HttpGet("/")]
