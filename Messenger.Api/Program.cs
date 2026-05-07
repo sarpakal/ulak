@@ -1,17 +1,21 @@
 using AuthApi.Models;
+using Messenger.Api.Middleware;
 using Messenger.Core.Options;
 using Messenger.Infrastructure.Config;
+using Messenger.Infrastructure.Data;
 using Messenger.Infrastructure.Senders;
 using Microsoft.EntityFrameworkCore;
-using Messenger.Infrastructure.Data;
-using Messenger.Api.Middleware;
+using Microsoft.Extensions.Logging.Console;
 
 var builder = WebApplication.CreateBuilder(args);
 var config = builder.Configuration;
 
 // Configure logging for structured output and include scopes (so correlation id appears)
 builder.Logging.ClearProviders();
-builder.Logging.AddConsole(options => options.IncludeScopes = true);
+builder.Logging.AddJsonConsole(options =>
+{
+    options.IncludeScopes = true;
+});
 builder.Logging.AddDebug();
 
 // Make IHttpContextAccessor available for services that may need to read the correlation id
@@ -22,8 +26,6 @@ builder.Services.Configure<EmailOptions>(config.GetSection("Messaging:Email"));
 builder.Services.Configure<CorvassApiOptions>(config.GetSection("Messaging:CorvassApi"));
 builder.Services.Configure<WhatsAppOptions>(config.GetSection("Messaging:Whatsapp"));
 builder.Services.Configure<FcmNotificationOptions>(config.GetSection("Messaging:FcmNotification"));
-
-builder.Services.Configure<OtpOptions>(config.GetSection("Otp"));
 
 //builder.Services.AddHttpClient();
 
@@ -36,8 +38,8 @@ builder.Services.Configure<OtpOptions>(config.GetSection("Otp"));
 
 // === 2. Register DbContext ===
 // ── Database ─────────────────────────────────────────────────────────────────
-var connectionString = builder.Configuration.GetConnectionString("Messenger")
-    ?? throw new InvalidOperationException("Connection string 'Messenger' not found.");
+var connectionString = builder.Configuration.GetConnectionString("UlakConnection")
+    ?? throw new InvalidOperationException("Connection string 'UlakConnection' not found.");
 
 builder.Services.AddDbContext<MessengerDbContext>(opts =>
     opts.UseNpgsql(connectionString, npgsql =>

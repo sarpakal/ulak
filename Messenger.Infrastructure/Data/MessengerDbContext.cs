@@ -21,5 +21,6 @@ public class MessageLog
     public string Recipient { get; set; } = string.Empty;
     public string? Payload { get; set; }
     public string Status { get; set; } = string.Empty;
+    public string? CorrelationId { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }

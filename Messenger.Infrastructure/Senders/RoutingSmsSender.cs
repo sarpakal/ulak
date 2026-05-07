@@ -40,12 +40,9 @@ public class RoutingSmsSender : ISmsService
         _logger   = logger;
     }
 
-    public Task<bool> SendAsync(string phoneNumber, string otpCode, CancellationToken ct = default)
-        => SendOtpAsync(phoneNumber, otpCode, ct);
-
-    public async Task<bool> SendOtpAsync(
+    public async Task<bool> SendAsync(
         string phoneNumber,
-        string otpCode,
+        string text,
         CancellationToken ct = default)
     {
         var providerName = _options.ResolveProvider(phoneNumber) ?? "Console";
@@ -62,7 +59,7 @@ public class RoutingSmsSender : ISmsService
                     "SMS attempt {Attempt}/{Total} via {Provider} to {Phone}",
                     attempt, totalAttempts, providerName, phoneNumber);
 
-                var success = await sender.SendOtpAsync(phoneNumber, otpCode, ct);
+                var success = await sender.SendAsync(phoneNumber, text, ct);
 
                 if (success)
                     return true;
@@ -84,11 +81,10 @@ public class RoutingSmsSender : ISmsService
                 await Task.Delay(_options.RetryDelayMs, ct);
         }
 
-        // All attempts exhausted
         throw new SmsException(
             phoneNumber,
             providerName,
-            $"Failed to send OTP to {phoneNumber} via {providerName} after {totalAttempts} attempt(s).",
+            $"Failed to send SMS to {phoneNumber} via {providerName} after {totalAttempts} attempt(s).",
             lastEx);
     }
 

@@ -1,6 +1,29 @@
 @Messenger.Api_HostAddress = http://localhost:5156
 
-GET {{Messenger.Api_HostAddress}}/weatherforecast/
-Accept: application/json
+POST {{Messenger.Api_HostAddress}}/api/messages/sms
+Content-Type: application/json
+
+{ "to": ["+905551234567"], "text": "Hello from ULAK" }
+
+###
+
+POST {{Messenger.Api_HostAddress}}/api/messages/email
+Content-Type: application/json
+
+{ "to": ["user@example.com"], "subject": "Test", "body": "Hello from ULAK", "cc": [], "bcc": [] }
+
+###
+
+POST {{Messenger.Api_HostAddress}}/api/messages/whatsapp
+Content-Type: application/json
+
+{ "to": "+905551234567", "text": "Hello from ULAK" }
+
+###
+
+POST {{Messenger.Api_HostAddress}}/api/messages/push
+Content-Type: application/json
+
+{ "to": "device-fcm-token", "title": "Test", "body": "Hello from ULAK" }
 
 ###

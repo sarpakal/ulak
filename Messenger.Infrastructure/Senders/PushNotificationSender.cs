@@ -7,9 +7,9 @@ namespace Messenger.Infrastructure.Senders;
 public class PushNotificationSender : IPushNotificationSender
 {
     private readonly FcmNotificationOptions _options;
-    public PushNotificationSender(FcmNotificationOptions options)
+    public PushNotificationSender(IOptions<FcmNotificationOptions> options)
     {
-        _options = options;
+        _options = options.Value;
     }
     public Task SendAsync(PushMessage message, CancellationToken ct = default)
     {
