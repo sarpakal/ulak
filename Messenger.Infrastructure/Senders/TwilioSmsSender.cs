@@ -1,16 +1,11 @@
 using AuthApi.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Twilio;
+using Twilio.Rest.Api.V2010.Account;
 
 namespace Messenger.Infrastructure.Senders;
 
-/// <summary>
-/// Sends SMS via Twilio (US/CA lines, +1).
-///
-/// To activate:
-///   dotnet add package Twilio
-///   Uncomment the implementation below and remove the stub body.
-/// </summary>
 public class TwilioSmsSender : ISmsSender
 {
     private readonly TwilioOptions _options;
@@ -22,9 +17,7 @@ public class TwilioSmsSender : ISmsSender
     {
         _options = options.Value;
         _logger  = logger;
-
-        // Uncomment when Twilio package is installed:
-        // TwilioClient.Init(_options.AccountSid, _options.AuthToken);
+        TwilioClient.Init(_options.AccountSid, _options.AuthToken);
     }
 
     public async Task SendAsync(SmsMessage message, CancellationToken cancellationToken = default)
@@ -35,20 +28,16 @@ public class TwilioSmsSender : ISmsSender
 
     private async Task SendSingleAsync(string phoneNumber, string text, CancellationToken ct)
     {
-        _logger.LogWarning(
-            "TwilioSmsSender: Twilio package not yet installed. SMS for {Phone}", phoneNumber);
+        _logger.LogInformation("Sending SMS via Twilio to {Phone}", phoneNumber);
 
-        // ── Activate when Twilio NuGet is installed ──────────────────────────
-        //
-        // var message = await MessageResource.CreateAsync(
-        //     body: text,
-        //     from: new Twilio.Types.PhoneNumber(_options.FromNumber),
-        //     to:   new Twilio.Types.PhoneNumber(phoneNumber));
-        //
-        // if (message.ErrorCode != null)
-        //     throw new HttpRequestException($"Twilio error {message.ErrorCode}: {message.ErrorMessage}");
-        // ─────────────────────────────────────────────────────────────────────
+        var msg = await MessageResource.CreateAsync(
+            body: text,
+            from: new Twilio.Types.PhoneNumber(_options.FromNumber),
+            to:   new Twilio.Types.PhoneNumber(phoneNumber));
 
-        await Task.CompletedTask;
+        if (msg.ErrorCode != null)
+            throw new HttpRequestException($"Twilio error {msg.ErrorCode}: {msg.ErrorMessage}");
+
+        _logger.LogInformation("Twilio SMS sent to {Phone}, SID={Sid}", phoneNumber, msg.Sid);
     }
 }
