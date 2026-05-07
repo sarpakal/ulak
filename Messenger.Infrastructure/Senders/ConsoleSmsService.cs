@@ -7,18 +7,19 @@ namespace Messenger.Infrastructure.Senders;
 /// Used when no provider prefix matches or when running without credentials.
 /// Never register this in production.
 /// </summary>
-public class ConsoleSmsService : ISmsService
+public class ConsoleSmsService : ISmsSender
 {
     private readonly ILogger<ConsoleSmsService> _logger;
 
     public ConsoleSmsService(ILogger<ConsoleSmsService> logger) => _logger = logger;
 
-    public Task<bool> SendAsync(string phoneNumber, string text, CancellationToken ct = default)
+    public Task SendAsync(SmsMessage message, CancellationToken cancellationToken = default)
     {
-        _logger.LogWarning(
-            "DEV MODE — SMS for {Phone}: {Text}  ← do not log message content in production!",
-            phoneNumber, text);
+        foreach (var number in message.To)
+            _logger.LogWarning(
+                "DEV MODE — SMS for {Phone}: {Text}  ← do not log message content in production!",
+                number, message.Text);
 
-        return Task.FromResult(true);
+        return Task.CompletedTask;
     }
 }

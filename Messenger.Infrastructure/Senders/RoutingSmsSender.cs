@@ -1,54 +1,63 @@
 using AuthApi.Models;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Messenger.Infrastructure.Senders;
 
 /// <summary>
-/// Routes OTP SMS to the correct provider based on the phone number's E.164 prefix.
+/// Routes outgoing SMS to the correct provider based on the recipient's E.164 prefix.
 ///
 /// Routing table (from appsettings.json → Sms:ProviderPrefixes):
 ///   +90 → Corvass  (Turkish mobile lines)
-///   +1  → Twilio   (US lines)
+///   +1  → Twilio   (US/CA lines)
 ///
-/// Retry policy: one retry after a configurable delay.
+/// Recipients with different prefixes in a single message are split and dispatched separately.
 /// Falls back to ConsoleSmsService if no prefix matches (dev safety net).
-/// Throws <see cref="SmsException"/> if all attempts fail.
+/// Throws <see cref="SmsException"/> if all retry attempts fail for any group.
 /// </summary>
-public class RoutingSmsSender : ISmsService
+public class RoutingSmsSender : ISmsSender
 {
-    private readonly IServiceProvider _services;
-    private readonly SmsOptions       _options;
+    private readonly CorvassSmsSender _corvass;
+    private readonly TwilioSmsSender _twilio;
+    private readonly ConsoleSmsService _console;
+    private readonly SmsOptions _options;
     private readonly ILogger<RoutingSmsSender> _logger;
 
-    // Maps provider name (from config) → ISmsService implementation type
-    private static readonly Dictionary<string, Type> ProviderMap = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["Corvass"] = typeof(CorvassSmsSender),
-        ["Twilio"]  = typeof(TwilioSmsSender),
-        ["Console"] = typeof(ConsoleSmsService),
-    };
-
     public RoutingSmsSender(
-        IServiceProvider services,
+        CorvassSmsSender corvass,
+        TwilioSmsSender twilio,
+        ConsoleSmsService console,
         IOptions<SmsOptions> options,
         ILogger<RoutingSmsSender> logger)
     {
-        _services = services;
-        _options  = options.Value;
-        _logger   = logger;
+        _corvass = corvass;
+        _twilio  = twilio;
+        _console = console;
+        _options = options.Value;
+        _logger  = logger;
     }
 
-    public async Task<bool> SendAsync(
-        string phoneNumber,
-        string text,
-        CancellationToken ct = default)
+    public async Task SendAsync(SmsMessage message, CancellationToken cancellationToken = default)
     {
-        var providerName = _options.ResolveProvider(phoneNumber) ?? "Console";
-        var sender       = Resolve(providerName, phoneNumber);
+        // Group recipients by provider so a mixed-prefix batch fans out correctly
+        var groups = message.To.GroupBy(n => _options.ResolveProvider(n) ?? "Console");
 
-        var totalAttempts = _options.RetryCount + 1; // e.g. RetryCount=1 → 2 attempts
+        foreach (var group in groups)
+        {
+            var providerName = group.Key;
+            var sender = Resolve(providerName);
+            var batch = message with { To = group.ToList() };
+            await SendWithRetryAsync(sender, batch, providerName, cancellationToken);
+        }
+    }
+
+    private async Task SendWithRetryAsync(
+        ISmsSender sender,
+        SmsMessage message,
+        string providerName,
+        CancellationToken ct)
+    {
+        var totalAttempts = _options.RetryCount + 1;
         Exception? lastEx = null;
 
         for (int attempt = 1; attempt <= totalAttempts; attempt++)
@@ -56,48 +65,47 @@ public class RoutingSmsSender : ISmsService
             try
             {
                 _logger.LogInformation(
-                    "SMS attempt {Attempt}/{Total} via {Provider} to {Phone}",
-                    attempt, totalAttempts, providerName, phoneNumber);
+                    "SMS attempt {Attempt}/{Total} via {Provider} to {Recipients}",
+                    attempt, totalAttempts, providerName, message.To);
 
-                var success = await sender.SendAsync(phoneNumber, text, ct);
-
-                if (success)
-                    return true;
-
-                // Provider returned false (non-exception failure) — treat as retryable
-                _logger.LogWarning(
-                    "SMS attempt {Attempt} returned false via {Provider} for {Phone}",
-                    attempt, providerName, phoneNumber);
+                await sender.SendAsync(message, ct);
+                return;
             }
             catch (Exception ex) when (attempt < totalAttempts)
             {
                 lastEx = ex;
                 _logger.LogWarning(ex,
-                    "SMS attempt {Attempt} failed via {Provider} for {Phone}. Retrying in {Delay}ms...",
-                    attempt, providerName, phoneNumber, _options.RetryDelayMs);
-            }
-
-            if (attempt < totalAttempts)
+                    "SMS attempt {Attempt} failed via {Provider}. Retrying in {Delay}ms...",
+                    attempt, providerName, _options.RetryDelayMs);
                 await Task.Delay(_options.RetryDelayMs, ct);
+            }
         }
 
         throw new SmsException(
-            phoneNumber,
+            string.Join(", ", message.To),
             providerName,
-            $"Failed to send SMS to {phoneNumber} via {providerName} after {totalAttempts} attempt(s).",
+            $"Failed to send SMS via {providerName} after {totalAttempts} attempt(s).",
             lastEx);
     }
 
-    private ISmsService Resolve(string providerName, string phoneNumber)
+    private ISmsSender Resolve(string providerName) => providerName switch
     {
-        if (!ProviderMap.TryGetValue(providerName, out var type))
-        {
-            _logger.LogWarning(
-                "Unknown SMS provider '{Provider}' for {Phone}. Falling back to Console.",
-                providerName, phoneNumber);
-            return _services.GetRequiredService<ConsoleSmsService>();
-        }
+        "Corvass" => _corvass,
+        "Twilio"  => _twilio,
+        _         => _console,
+    };
+}
 
-        return (ISmsService)_services.GetRequiredService(type);
+/// <summary>Thrown when an SMS send fails after all retry attempts.</summary>
+public class SmsException : Exception
+{
+    public string PhoneNumber  { get; }
+    public string ProviderName { get; }
+
+    public SmsException(string phoneNumber, string providerName, string message, Exception? inner = null)
+        : base(message, inner)
+    {
+        PhoneNumber  = phoneNumber;
+        ProviderName = providerName;
     }
 }

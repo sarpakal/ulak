@@ -145,12 +145,6 @@ Never commit real secrets. Use `dotnet user-secrets` in development.
 
 ---
 
-## Known Issues / Pending Work
-
-- [ ] `RoutingSmsSender` is not registered in DI — `MessengerInfrastructureModule`
-      still registers `CorvassSmsSender` directly as `ISmsSender`, bypassing prefix-based routing.
-      Wire up `RoutingSmsSender` as `ISmsSender` and register individual senders as keyed services.
-
 ---
 
 ## Development Principles

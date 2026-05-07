@@ -49,7 +49,7 @@ builder.Services.AddDbContext<MessengerDbContext>(opts =>
     }));
 
 // === 3. Register Services ===
-builder.Services.AddMessengerInfrastructure();
+builder.Services.AddMessengerInfrastructure(config);
 
 
 // Add services to the container.

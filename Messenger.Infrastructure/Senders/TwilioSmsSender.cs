@@ -11,7 +11,7 @@ namespace Messenger.Infrastructure.Senders;
 ///   dotnet add package Twilio
 ///   Uncomment the implementation below and remove the stub body.
 /// </summary>
-public class TwilioSmsSender : ISmsService
+public class TwilioSmsSender : ISmsSender
 {
     private readonly TwilioOptions _options;
     private readonly ILogger<TwilioSmsSender> _logger;
@@ -27,11 +27,16 @@ public class TwilioSmsSender : ISmsService
         // TwilioClient.Init(_options.AccountSid, _options.AuthToken);
     }
 
-    public async Task<bool> SendAsync(string phoneNumber, string text, CancellationToken ct = default)
+    public async Task SendAsync(SmsMessage message, CancellationToken cancellationToken = default)
+    {
+        foreach (var number in message.To)
+            await SendSingleAsync(number, message.Text, cancellationToken);
+    }
+
+    private async Task SendSingleAsync(string phoneNumber, string text, CancellationToken ct)
     {
         _logger.LogWarning(
-            "TwilioSmsSender: Twilio package not yet installed. " +
-            "SMS for {Phone}: {Text}", phoneNumber, text);
+            "TwilioSmsSender: Twilio package not yet installed. SMS for {Phone}", phoneNumber);
 
         // ── Activate when Twilio NuGet is installed ──────────────────────────
         //
@@ -40,10 +45,10 @@ public class TwilioSmsSender : ISmsService
         //     from: new Twilio.Types.PhoneNumber(_options.FromNumber),
         //     to:   new Twilio.Types.PhoneNumber(phoneNumber));
         //
-        // return message.ErrorCode == null;
+        // if (message.ErrorCode != null)
+        //     throw new HttpRequestException($"Twilio error {message.ErrorCode}: {message.ErrorMessage}");
         // ─────────────────────────────────────────────────────────────────────
 
         await Task.CompletedTask;
-        return true; // stub always succeeds
     }
 }
