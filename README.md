@@ -1,52 +1,104 @@
-# Messenger
+# ULAK — Multi-Channel Messaging Gateway
 
-Project purpose
----------------
-Messenger is a lightweight, modular multi-channel messaging service that centralizes sending of SMS, WhatsApp, Email and Push Notifications. It is split into a small Web API, a core library of contracts and DTOs, and an infrastructure project with concrete provider implementations.
+**ULAK** (project name: Messenger) is a pure transport gateway for sending SMS, Email, WhatsApp, and Push Notifications. It exposes a single HTTP API consumed by other backend services (e.g. Auth Platform, Campaigns App). It has no business logic of its own.
 
-Projects
---------
-- Messenger.Api — ASP.NET Core Web API exposing endpoints for sending messages
-- Messenger.Core — Interfaces, DTOs, options and core service logic (contracts only)
-- Messenger.Infrastructure — Implementations for providers (Twilio, Corvass, SMTP, FCM, WhatsApp, console, etc.)
+---
 
-How to run
-----------
-Visual Studio
-1. Open the solution (Messenger.sln) in Visual Studio.
-2. Set `Messenger.Api` as the startup project.
-3. Build (Ctrl+Shift+B) and Run (F5 or Ctrl+F5).
+## Projects
 
-CLI
-1. Open a terminal in the solution root (PowerShell recommended).
-2. Build: `dotnet build`
-3. Run the API project: `dotnet run --project Messenger.Api\Messenger.Api.csproj`
-4. The app listens on the configured URL in Program.cs / appsettings.json.
+| Project | Type | Role |
+|---------|------|------|
+| `Messenger.Api` | ASP.NET Core Web API (.NET 10) | HTTP entry point — receives send requests, delegates to infrastructure |
+| `Messenger.Core` | Class library | Contracts only — interfaces, DTOs, options (no external dependencies) |
+| `Messenger.Infrastructure` | Class library | Provider implementations — Corvass, Twilio, SMTP, WhatsApp, FCM |
 
-Environment variables & configuration
--------------------------------------
-This project uses the Options pattern. Provide required secrets via environment variables, `dotnet user-secrets` (development), or a secret store in production.
-Common keys (examples only):
-- TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM
-- CORVASS_API_KEY, CORVASS_BASE_URL
-- SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD
-- FCM_SERVER_KEY
-- WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_ACCESS_TOKEN
+---
 
-Security notes
---------------
-- Never commit API keys, credentials, or user secrets to source control.
-- Use `dotnet user-secrets` during development or a managed secret store (Key Vault, AWS Secrets Manager, etc.) in production.
-- Treat all external responses as untrusted and validate before use.
+## Requirements
 
-Architecture overview
----------------------
-- Separation of concerns: Core defines contracts and DTOs; Infrastructure contains provider implementations; API composes and exposes endpoints.
-- Dependency Injection is used to register concrete senders against core interfaces.
-- Add new providers by implementing the appropriate I* interface in Messenger.Core and registering it in DI within Messenger.Infrastructure.
+- .NET 10 SDK
+- PostgreSQL 14+ (for message logging)
 
-Developer notes
----------------
-- Add unit and integration tests (xUnit/NUnit) and configure CI to run them.
-- Add Swagger (OpenAPI) to Messenger.Api for easier integration testing.
-- Remove any generated build artifacts from source control (`bin/`, `obj/`).
+---
+
+## Local setup
+
+```bash
+# Clone and restore
+git clone https://github.com/akalaico/Messenger.git
+cd Messenger
+dotnet restore
+
+# Run the API (migrations run automatically on startup)
+dotnet run --project Messenger.Api
+```
+
+Dev secrets are managed via `dotnet user-secrets` — see `CLAUDE.md` for the configuration structure.
+
+---
+
+## API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/messages/sms` | Send SMS |
+| POST | `/api/messages/email` | Send email |
+| POST | `/api/messages/whatsapp` | Send WhatsApp message |
+| POST | `/api/messages/push` | Send push notification |
+
+### Request shapes
+
+```json
+// SMS
+{ "to": ["+905551234567"], "text": "Your message" }
+
+// Email
+{ "to": ["user@example.com"], "subject": "Subject", "body": "Body text" }
+
+// WhatsApp
+{ "to": "+905551234567", "text": "Your message" }
+
+// Push
+{ "to": "device-fcm-token", "title": "Title", "body": "Body" }
+```
+
+---
+
+## SMS Routing
+
+SMS is routed by E.164 prefix due to regulatory requirements:
+
+| Prefix | Provider |
+|--------|----------|
+| `+90` | Corvass (Turkey) |
+| `+1` | Twilio (US / CA) |
+
+Routing is configured in `appsettings.json` under `Sms:ProviderPrefixes`. Never hardcode provider selection.
+
+---
+
+## Deployment
+
+Production runs as a Docker container on an Ubuntu VPS behind Nginx.
+
+**VPS:** `root@187.124.233.239`
+
+```bash
+# 1. Publish (from repo root on Windows)
+dotnet publish Messenger.Api/Messenger.Api.csproj -c Release -r linux-x64 --self-contained false -o ./publish
+
+# 2. Upload to VPS
+scp -O -r /c/Users/sarpa/source/repos/10/Messenger/publish/ root@187.124.233.239:~/apps/ulak-messenger/publish_new/
+ssh root@187.124.233.239 "cp -r ~/apps/ulak-messenger/publish_new/. ~/apps/ulak-messenger/publish/ && rm -rf ~/apps/ulak-messenger/publish_new"
+
+# 3. Rebuild and restart on VPS
+ssh root@187.124.233.239 "cd ~/apps && docker compose build ulak-messenger && docker compose up -d"
+```
+
+The app listens on port **8080** inside the container, mapped to **5002** on the host. Nginx reverse-proxies external HTTPS traffic to port 5002.
+
+---
+
+## License
+
+Internal project — not licensed for public distribution.

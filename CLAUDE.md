@@ -145,8 +145,6 @@ Never commit real secrets. Use `dotnet user-secrets` in development.
 
 ---
 
----
-
 ## Development Principles
 
 - **Targeted additions only.** Never rewrite a file unless explicitly asked.
@@ -171,6 +169,53 @@ Never commit real secrets. Use `dotnet user-secrets` in development.
 | WhatsApp     | WhatsApp Business API (WABA)            |
 | Push         | Firebase Cloud Messaging (FCM)          |
 | Resilience   | Polly (retry + timeout on HttpClient)   |
-| IDE          | Visual Studio 2022/2026                 |
+| IDE          | Visual Studio 2026                      |
 | OS           | Windows 11                              |
 
+---
+
+## Deployment Environment
+
+- **Production runtime**: Docker container on Linux VPS (Ubuntu)
+- **Database**: PostgreSQL (native on VPS, not containerized)
+- **Reverse proxy**: Nginx with SSL (Certbot)
+- **Automation**: n8n (Docker) calls ULAK via HTTP for workflows
+
+### Directory structure on VPS
+~/apps/
+├── docker-compose.yml     ← manages all services together
+├── .env                   ← all secrets, never committed to git
+├── auth-identity/
+│   ├── publish/           ← dotnet publish linux-x64 output
+│   └── Dockerfile
+├── ulak-messenger/
+│   ├── publish/           ← dotnet publish linux-x64 output
+│   └── Dockerfile
+└── n8n/
+    └── data/              ← n8n persistent volume
+
+### Docker notes
+- AUTH app runs on port 8080 inside container, mapped to 5001 on host
+- ULAK app runs on port 8080 inside container, mapped to 5002 on host
+- All secrets come from ~/apps/.env via env_file directive
+- ASP.NET Core reads environment variables automatically over appsettings.json
+- host.docker.internal resolves to native PostgreSQL on the VPS host
+- EF Core migrations run automatically on startup (already in Program.cs)
+
+### Deployment steps
+1. Publish on Windows:
+   ```
+   dotnet publish Messenger.Api/Messenger.Api.csproj -c Release -r linux-x64 --self-contained false -o ./publish
+   ```
+2. Copy to VPS (upload to staging dir to avoid path nesting, then move):
+   ```
+   scp -O -r /c/Users/sarpa/source/repos/10/Messenger/publish/ root@187.124.233.239:~/apps/ulak-messenger/publish_new/
+   ssh root@187.124.233.239 "cp -r ~/apps/ulak-messenger/publish_new/. ~/apps/ulak-messenger/publish/ && rm -rf ~/apps/ulak-messenger/publish_new"
+   ```
+3. On VPS: `cd ~/apps && docker compose build ulak-messenger && docker compose up -d`
+
+### What this means for code changes
+- Configuration must support both appsettings.json (dev) and
+  environment variables (prod) — Options pattern already handles this
+- Never hardcode URLs, ports, or credentials
+- Do not break the Dockerfile or change the publish output structure
