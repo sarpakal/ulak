@@ -76,6 +76,7 @@ if (app.Environment.IsDevelopment())
 }
 
 //app.UseHttpsRedirection();
+app.UsePathBase("/messenger");
 // Correlation id middleware should run early so subsequent middleware and controllers log the id
 app.UseCorrelationId();
 app.UseAuthorization();

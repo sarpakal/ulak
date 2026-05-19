@@ -12,6 +12,10 @@ out/
 
 # Publish
 publish/
+publish_out/
+
+# Claude Code tooling
+.claude/
 
 # NuGet
 *.nupkg

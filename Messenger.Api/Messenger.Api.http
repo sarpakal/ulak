@@ -3,14 +3,14 @@
 POST {{Messenger.Api_HostAddress}}/api/messages/sms
 Content-Type: application/json
 
-{ "to": ["+905551234567"], "text": "Hello from ULAK" }
+{ "to": ["+905332734646"], "text": "Hello from ULAK" }
 
 ###
 
 POST {{Messenger.Api_HostAddress}}/api/messages/email
 Content-Type: application/json
 
-{ "to": ["user@example.com"], "subject": "Test", "body": "Hello from ULAK", "cc": [], "bcc": [] }
+{ "to": ["doruk@akalai.co"], "subject": "Test", "body": "Hello from ULAK", "cc": [], "bcc": [] }
 
 ###
 

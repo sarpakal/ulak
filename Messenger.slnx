@@ -2,9 +2,16 @@
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
     <File Path=".gitignore" />
+    <File Path="CLAUDE.md" />
     <File Path="Directory.Packages.props" />
+    <File Path="portfolio-ready project description.md" />
+    <File Path="README.md" />
+    <File Path="startup-style pitch.md" />
   </Folder>
-  <Project Path="Messenger.Api/Messenger.Api.csproj" Id="491698b7-eb9d-4c97-af6b-271cb534b3ac" />
-  <Project Path="Messenger.Core/Messenger.Core.csproj" />
-  <Project Path="Messenger.Infrastructure/Messenger.Infrastructure.csproj" />
+  <Folder Name="/src/" />
+  <Folder Name="/src/Server/">
+    <Project Path="Messenger.Api/Messenger.Api.csproj" Id="491698b7-eb9d-4c97-af6b-271cb534b3ac" />
+    <Project Path="Messenger.Core/Messenger.Core.csproj" />
+    <Project Path="Messenger.Infrastructure/Messenger.Infrastructure.csproj" />
+  </Folder>
 </Solution>

@@ -55,9 +55,3 @@ To become the “Stripe for messaging” — a simple, developer-friendly platfo
 You already built the technical foundation
 You’re targeting a real-world use case (property management & services)
 You can launch as a lean MVP and iterate fast
-
-If you want, I can take this one step further and create:
-
-💸 Landing page copy (high-converting)
-🎯 Go-to-market strategy (first 10 customers in Raleigh)
-📊 Pricing model optimized for SaaS growth

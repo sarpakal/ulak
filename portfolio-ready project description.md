@@ -1,7 +1,7 @@
 📌 Messenger Platform (Multi-Channel Messaging System)
 Overview
 
-Designed and developed a scalable multi-channel messaging platform using .NET 9, ASP.NET Core Web API, and .NET MAUI. The system enables sending messages across multiple communication channels—including SMS, WhatsApp, Email, and Push Notifications—through a unified backend service and a mobile control interface.
+Designed and developed a scalable multi-channel messaging platform using .NET 10, ASP.NET Core Web API, and .NET MAUI. The system enables sending messages across multiple communication channels—including SMS, WhatsApp, Email, and Push Notifications—through a unified backend service and a mobile control interface.
 
 Key Features
 📱 Send SMS via Corvass API
@@ -38,9 +38,3 @@ Background job processing (queues/retries)
 User authentication & role-based access
 Integration with external data sources (e.g., Google Sheets)
 SaaS-style dashboard for business use
-
-If you want, I can also convert this into:
-
-🔥 LinkedIn post (to attract recruiters/clients)
-💼 Resume bullet points (ATS-friendly)
-🚀 Startup pitch version (this could actually be monetized)
