@@ -177,8 +177,9 @@ Never commit real secrets. Use `dotnet user-secrets` in development.
 ## Deployment Environment
 
 - **Production runtime**: Docker container on Linux VPS (Ubuntu)
+- **Production URL**: `https://ulak.akgyh.com`
 - **Database**: PostgreSQL (native on VPS, not containerized)
-- **Reverse proxy**: Nginx with SSL (Certbot)
+- **Reverse proxy**: Nginx with SSL (Certbot / Let's Encrypt, auto-renewing)
 - **Automation**: n8n (Docker) calls ULAK via HTTP for workflows
 
 ### Directory structure on VPS
