@@ -201,6 +201,7 @@ Never commit real secrets. Use `dotnet user-secrets` in development.
 |-----------|--------|-----------|---------------|---------|
 | `auth-service` | `https://auth.akgyh.com` | 5001 | 8080 | Auth.Api |
 | `ulak-service` | `https://ulak.akgyh.com` | 5002 | 8080 | Messenger.Api |
+| `ingest-service` | `https://ingest.akgyh.com` | 5010 | 5010 | MessageIngest.Api |
 - All secrets come from ~/apps/.env via env_file directive
 - ASP.NET Core reads environment variables automatically over appsettings.json
 - host.docker.internal resolves to native PostgreSQL on the VPS host
