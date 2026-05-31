@@ -196,8 +196,11 @@ Never commit real secrets. Use `dotnet user-secrets` in development.
     └── data/              ← n8n persistent volume
 
 ### Docker notes
-- AUTH app listens on port 8080 inside container, mapped to 5001 on host. Nginx reverse-proxies `https://auth.akgyh.com` → host port 5001 → container port 8080.
-- ULAK app listens on port 8080 inside container, mapped to 5002 on host. Nginx reverse-proxies `https://ulak.akgyh.com` → host port 5002 → container port 8080.
+
+| Container | Domain | Host port | Internal port | Service |
+|-----------|--------|-----------|---------------|---------|
+| `auth-service` | `https://auth.akgyh.com` | 5001 | 8080 | Auth.Api |
+| `ulak-service` | `https://ulak.akgyh.com` | 5002 | 8080 | Messenger.Api |
 - All secrets come from ~/apps/.env via env_file directive
 - ASP.NET Core reads environment variables automatically over appsettings.json
 - host.docker.internal resolves to native PostgreSQL on the VPS host
