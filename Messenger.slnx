@@ -8,6 +8,13 @@
     <File Path="README.md" />
     <File Path="startup-style pitch.md" />
   </Folder>
+  <Folder Name="/deploy/">
+    <File Path="deploy/Dockerfile" />
+    <File Path="deploy/docker-compose.yml" />
+  </Folder>
+  <Folder Name="/deploy/nginx/">
+    <File Path="deploy/nginx/ulak.conf" />
+  </Folder>
   <Folder Name="/src/" />
   <Folder Name="/src/Server/">
     <Project Path="Messenger.Api/Messenger.Api.csproj" Id="491698b7-eb9d-4c97-af6b-271cb534b3ac" />
