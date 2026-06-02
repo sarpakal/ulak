@@ -1,4 +1,4 @@
-using AuthApi.Models;
+using Messenger.Core.Models;
 using Messenger.Core;
 using Messenger.Core.Interfaces;
 using Messenger.Core.Options;

@@ -1,4 +1,4 @@
-namespace AuthApi.Models;
+namespace Messenger.Core.Models;
 
 public class CorvassOptions
 {

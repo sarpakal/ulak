@@ -68,7 +68,6 @@ Messenger.slnx
 │   │   ├── SmtpEmailSender.cs       # Email via MailKit
 │   │   ├── WhatsAppSender.cs        # WhatsApp via WABA
 │   │   ├── FcmPushSender.cs         # Push via FCM
-│   │   ├── OtpService.cs            # ⚠️ TO BE REMOVED — belongs in Auth Platform
 │   │   └── ISmsService.cs           # Internal routing abstraction
 │   ├── Data/
 │   │   └── MessengerDbContext.cs     # EF Core — MessageLog only
@@ -224,3 +223,22 @@ Never commit real secrets. Use `dotnet user-secrets` in development.
   environment variables (prod) — Options pattern already handles this
 - Never hardcode URLs, ports, or credentials
 - Do not break the Dockerfile or change the publish output structure
+
+---
+
+## Lessons learned
+
+### `AuthApi.Models` namespace on Messenger.Core options was a copy-paste artifact
+`CorvassOptions`, `TwilioOptions`, and `SmsOptions` were copied from Auth.Api and their `namespace AuthApi.Models;` declaration was never updated. Every Infrastructure file that consumed them had `using AuthApi.Models;`, making it look like Messenger depended on Auth's types. Fixed: renamed to `namespace Messenger.Core.Models;` across all three files and updated all consumers. Rule: always update the namespace immediately when copying a file into a different project.
+
+### `TwilioClient.Init()` in a constructor re-initialises global SDK state on every request
+`TwilioSmsSender` is registered as Scoped. Its constructor calls `TwilioClient.Init(accountSid, authToken)`, which sets the Twilio SDK's global static REST client. This runs once per HTTP request scope — harmless with a single set of credentials but a silent correctness hazard if credentials ever change mid-process or if multiple accounts are needed. The correct pattern is to call `TwilioClient.Init()` once at application startup (in `Program.cs`) or pass a per-call `TwilioRestClient` instance rather than relying on the global default.
+
+### `CorvassSmsSender` is injected as a concrete type into `RoutingSmsSender`
+`RoutingSmsSender` holds fields typed as `CorvassSmsSender` and `TwilioSmsSender` rather than `ISmsSender`. This bypasses the interface abstraction and makes swapping or mocking individual providers harder. The DI module also registers the concrete types directly (`services.AddScoped<CorvassSmsSender>()`). Acceptable for now given the fixed provider set, but if a third SMS provider is added, introduce a keyed registration or a named-factory pattern instead of adding another concrete field to `RoutingSmsSender`.
+
+### `MessageLog` write is intentionally fire-and-forget with swallowed exceptions
+`MessagesController.WriteLogAsync` wraps the EF Core save in `try/catch` and only logs the error — it never rethrows. This is by design: a logging failure must not fail the message delivery. However, it also means log gaps are invisible without monitoring. Ensure the `LogError` call is connected to a structured logging sink (Seq, Application Insights, etc.) so missing log rows surface as alerts rather than silent data loss.
+
+### `publish/` and `publish_out/` are gitignored — do not use `git add -A` before deploy
+Both directories are in `.gitignore`. If you run `git add -A` near a `dotnet publish` step the binary output is excluded automatically. However, `git add .` in older Git versions may behave differently — always verify `git status` shows no unexpected binaries staged before committing around a deploy cycle.

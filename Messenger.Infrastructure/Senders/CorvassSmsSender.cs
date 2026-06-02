@@ -1,4 +1,4 @@
-using AuthApi.Models;
+using Messenger.Core.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
