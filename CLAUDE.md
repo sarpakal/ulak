@@ -181,48 +181,55 @@ Never commit real secrets. Use `dotnet user-secrets` in development.
 - **Reverse proxy**: Nginx with SSL (Certbot / Let's Encrypt, auto-renewing)
 - **Automation**: n8n (Docker) calls ULAK via HTTP for workflows
 
+### Deploy files in this repo (`deploy/`)
+
+| File | Purpose |
+|------|---------|
+| `deploy/Dockerfile` | Matches `~/apps/ulak-messenger/Dockerfile` on VPS. Update both together. |
+| `deploy/docker-compose.yml` | Standalone dev compose. Production uses the platform `deploy/docker-compose.yml`. |
+| `deploy/nginx/ulak.conf` | The `ulak.akgyh.com` server block. Mirrors the ulak section of `/etc/nginx/sites-enabled/apis.conf` on VPS. |
+
 ### Directory structure on VPS
+```
 ~/apps/
-├── docker-compose.yml     ← manages all services together
-├── .env                   ← all secrets, never committed to git
-├── auth-identity/
-│   ├── publish/           ← dotnet publish linux-x64 output
-│   └── Dockerfile
+├── docker-compose.yml            # platform compose — source at C:\repos\10\deploy\docker-compose.yml
+├── .env                          # all secrets, never committed to git
 ├── ulak-messenger/
-│   ├── publish/           ← dotnet publish linux-x64 output
-│   └── Dockerfile
+│   ├── Dockerfile                # mirrors deploy/Dockerfile in this repo
+│   └── publish/                  # dotnet publish linux-x64 output
 └── n8n/
-    └── data/              ← n8n persistent volume
+    └── data/                     # n8n persistent volume
+```
 
-### Docker notes
+### Container map
 
-| Container | Domain | Host port | Internal port | Service |
-|-----------|--------|-----------|---------------|---------|
-| `auth-service` | `https://auth.akgyh.com` | 5001 | 8080 | Auth.Api |
-| `ulak-service` | `https://ulak.akgyh.com` | 5002 | 8080 | Messenger.Api |
-| `ingest-service` | `https://ingest.akgyh.com` | 5010 | 5010 | MessageIngest.Api |
-- All secrets come from ~/apps/.env via env_file directive
-- ASP.NET Core reads environment variables automatically over appsettings.json
-- host.docker.internal resolves to native PostgreSQL on the VPS host
-- EF Core migrations run automatically on startup (already in Program.cs)
+| Container | Domain | Host port | Container port |
+|-----------|--------|-----------|----------------|
+| `auth-service` | `https://auth.akgyh.com` | 5001 | 8080 |
+| `ulak-service` | `https://ulak.akgyh.com` | 5002 | 8080 |
+| `ingest-service` | `https://ingest.akgyh.com` | 5010 | 8080 |
+
+- All secrets come from `~/apps/.env` via env_file — never committed.
+- PostgreSQL runs natively on the VPS host; containers reach it via `host.docker.internal`.
 
 ### Deployment steps
 1. Publish on Windows:
    ```
    dotnet publish Messenger.Api/Messenger.Api.csproj -c Release -r linux-x64 --self-contained false -o ./publish
    ```
-2. Copy to VPS (upload to staging dir to avoid path nesting, then move):
+2. Upload to VPS:
    ```
    scp -O -r /c/Users/sarpa/source/repos/10/Messenger/publish/ root@187.124.233.239:~/apps/ulak-messenger/publish_new/
    ssh root@187.124.233.239 "cp -r ~/apps/ulak-messenger/publish_new/. ~/apps/ulak-messenger/publish/ && rm -rf ~/apps/ulak-messenger/publish_new"
    ```
 3. On VPS: `cd ~/apps && docker compose build ulak-messenger && docker compose up -d`
+4. If `deploy/Dockerfile` changes: also update `~/apps/ulak-messenger/Dockerfile` and redeploy.
+5. If `deploy/nginx/ulak.conf` changes: also update `/etc/nginx/sites-enabled/apis.conf` and run `nginx -s reload`.
 
 ### What this means for code changes
-- Configuration must support both appsettings.json (dev) and
-  environment variables (prod) — Options pattern already handles this
-- Never hardcode URLs, ports, or credentials
-- Do not break the Dockerfile or change the publish output structure
+- Configuration must support both appsettings.json (dev) and environment variables (prod).
+- Never hardcode URLs, ports, or credentials.
+- Never change the publish output path (`./publish`) — the Dockerfile's `COPY publish/ .` must stay in sync.
 
 ---
 
