@@ -235,6 +235,8 @@ Never commit real secrets. Use `dotnet user-secrets` in development.
 
 ## Lessons learned
 
+> Full narrative log (symptom → root cause → exact fix): **[LESSONS.md](LESSONS.md)**
+
 ### `AuthApi.Models` namespace on Messenger.Core options was a copy-paste artifact
 `CorvassOptions`, `TwilioOptions`, and `SmsOptions` were copied from Auth.Api and their `namespace AuthApi.Models;` declaration was never updated. Every Infrastructure file that consumed them had `using AuthApi.Models;`, making it look like Messenger depended on Auth's types. Fixed: renamed to `namespace Messenger.Core.Models;` across all three files and updated all consumers. Rule: always update the namespace immediately when copying a file into a different project.
 
