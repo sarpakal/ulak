@@ -8,9 +8,15 @@
 
 | Project | Type | Role |
 |---------|------|------|
-| `Messenger.Api` | ASP.NET Core Web API (.NET 10) | HTTP entry point — receives send requests, delegates to infrastructure |
-| `Messenger.Core` | Class library | Contracts only — interfaces, DTOs, options (no external dependencies) |
-| `Messenger.Infrastructure` | Class library | Provider implementations — Corvass, Twilio, SMTP, WhatsApp, FCM |
+| [`Messenger.Api`](Messenger.Api/README.md) | ASP.NET Core Web API (.NET 10) | HTTP entry point — receives send requests, delegates to infrastructure |
+| [`Messenger.Core`](Messenger.Core/README.md) | Class library | Contracts only — interfaces, DTOs, options (no external dependencies) |
+| [`Messenger.Infrastructure`](Messenger.Infrastructure/README.md) | Class library | Provider implementations — Corvass, Twilio, SMTP, WhatsApp, FCM |
+
+**Documentation:**
+[ARCHITECTURE](ARCHITECTURE.md) · [SECURITY](SECURITY.md) · [ROADMAP](ROADMAP.md) · [LESSONS](LESSONS.md) · [CLAUDE](CLAUDE.md)
+
+> ⚠️ The API currently has **no authentication** — see [SECURITY.md](SECURITY.md) before
+> exposing it to any new network or caller.
 
 ---
 
@@ -33,7 +39,9 @@ dotnet restore
 dotnet run --project Messenger.Api
 ```
 
-Dev secrets are managed via `dotnet user-secrets` — see `CLAUDE.md` for the configuration structure.
+The Postgres connection string key is `ConnectionStrings:UlakConnection` — the app fails
+fast at startup if it is missing. Dev secrets are managed via `dotnet user-secrets` — see
+`CLAUDE.md` for the configuration structure.
 
 ---
 

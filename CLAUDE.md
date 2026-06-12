@@ -18,6 +18,20 @@ Supported channels:
 - WhatsApp (WhatsApp Business API)
 - Push Notifications (Firebase Cloud Messaging)
 
+### Documentation map
+
+| Document | Content |
+|----------|---------|
+| [README.md](README.md) | Setup, run, project index |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Send flow, SMS routing, persistence, DI, deployment topology |
+| [SECURITY.md](SECURITY.md) | Threat model — **note: the API is currently unauthenticated** |
+| [ROADMAP.md](ROADMAP.md) | Done phases + open security/debt/testing items |
+| [LESSONS.md](LESSONS.md) | Cross-project failure log (per-project logs in each project) |
+
+Per-project guidance: [Messenger.Api/CLAUDE.md](Messenger.Api/CLAUDE.md) ·
+[Messenger.Core/CLAUDE.md](Messenger.Core/CLAUDE.md) ·
+[Messenger.Infrastructure/CLAUDE.md](Messenger.Infrastructure/CLAUDE.md)
+
 ---
 
 ## Hard Architectural Rules
@@ -117,7 +131,7 @@ Messenger.slnx
 ```json
 {
   "ConnectionStrings": {
-    "Messenger": "Host=...;Database=...;Username=...;Password=..."
+    "UlakConnection": "Host=...;Database=...;Username=...;Password=..."
   },
   "Messaging": {
     "Email": { "SmtpHost": "", "SmtpPort": 587, "SenderEmail": "", "SenderPassword": "" },
@@ -235,7 +249,9 @@ Never commit real secrets. Use `dotnet user-secrets` in development.
 
 ## Lessons learned
 
-> Full narrative log (symptom → root cause → exact fix): **[LESSONS.md](LESSONS.md)**
+> Cross-project log: **[LESSONS.md](LESSONS.md)** · per-project logs:
+> [Messenger.Api](Messenger.Api/LESSONS.md) · [Messenger.Core](Messenger.Core/LESSONS.md) ·
+> [Messenger.Infrastructure](Messenger.Infrastructure/LESSONS.md)
 
 ### `AuthApi.Models` namespace on Messenger.Core options was a copy-paste artifact
 `CorvassOptions`, `TwilioOptions`, and `SmsOptions` were copied from Auth.Api and their `namespace AuthApi.Models;` declaration was never updated. Every Infrastructure file that consumed them had `using AuthApi.Models;`, making it look like Messenger depended on Auth's types. Fixed: renamed to `namespace Messenger.Core.Models;` across all three files and updated all consumers. Rule: always update the namespace immediately when copying a file into a different project.
