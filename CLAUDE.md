@@ -22,6 +22,7 @@ Supported channels:
 
 | Document | Content |
 |----------|---------|
+| [CLAUDE_CONTEXT.md](CLAUDE_CONTEXT.md) | Full AI context: architecture, SMS routing, hard rules, deployment (upload to claude.ai Project) |
 | [README.md](README.md) | Setup, run, project index |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Send flow, SMS routing, persistence, DI, deployment topology |
 | [SECURITY.md](SECURITY.md) | Threat model — **note: the API is currently unauthenticated** |

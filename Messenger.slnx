@@ -3,6 +3,7 @@
     <File Path=".editorconfig" />
     <File Path=".gitignore" />
     <File Path="CLAUDE.md" />
+    <File Path="CLAUDE_CONTEXT.md" />
     <File Path="Directory.Packages.props" />
     <File Path="portfolio-ready project description.md" />
     <File Path="README.md" />
