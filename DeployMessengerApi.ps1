@@ -25,16 +25,19 @@ try {
 
     Write-Host "[2/4] Uploading to VPS..." -ForegroundColor Cyan
     scp -O -r "$publishPath\" sarpvps:~/apps/ulak-messenger/publish_new/
+    if ($LASTEXITCODE -ne 0) { throw "scp upload failed with exit code $LASTEXITCODE" }
 
     Write-Host "[3/4] Swapping publish folders on VPS..." -ForegroundColor Cyan
     ssh sarpvps "cp -r ~/apps/ulak-messenger/publish_new/. ~/apps/ulak-messenger/publish/ && rm -rf ~/apps/ulak-messenger/publish_new"
+    if ($LASTEXITCODE -ne 0) { throw "VPS folder swap failed with exit code $LASTEXITCODE" }
 
     Write-Host "[4/4] Rebuilding and restarting container..." -ForegroundColor Cyan
-    ssh sarpvps "cd ~/apps && docker compose build ulak-messenger && docker compose up -d ulak-messenger"
+    ssh sarpvps "cd ~/apps && docker compose build ulak-messenger 2>&1 && docker compose up -d ulak-messenger 2>&1"
+    if ($LASTEXITCODE -ne 0) { throw "docker compose build/up failed with exit code $LASTEXITCODE" }
 
     Write-Host "`nStartup logs:" -ForegroundColor Magenta
     Start-Sleep -Seconds 3
-    ssh sarpvps "docker logs ulak-service --tail 15"
+    ssh sarpvps "docker logs ulak-service --tail 15 2>&1"
 
     Write-Host "`nDone. Service running at https://ulak.akgyh.com" -ForegroundColor Green
 
