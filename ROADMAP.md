@@ -48,7 +48,7 @@
 ## Phase 4 — Testing (open)
 
 `Messenger.Tests` scaffolded (xUnit v3 + FluentAssertions + Testcontainers, in
-`Messenger.slnx`). 12 tests, all passing (10 unit + 2 integration).
+`Messenger.slnx`). 15 tests, all passing (13 unit + 2 integration).
 
 - [x] Unit tests: `RoutingSmsSender` + `SmsOptions` (10 tests, all passing)
   - [x] Fallback behaviour — unmatched prefix throws `SmsException` when
@@ -76,7 +76,14 @@
       Required `public partial class Program` in `Program.cs` and (test-project only) an
       EF Core 10.0.7 pin to resolve a pre-existing Npgsql/EFCore.Design version drift
       that surfaces as CS1705 once the test compiles against EF types.
-- [ ] Provider senders behind fakes — verify request shapes for Corvass/WABA/FCM
+- [x] Provider senders behind fakes — verify request shapes for Corvass/WABA/FCM
+      (`ProviderSenderTests`). A capturing `HttpMessageHandler` asserts each sender's
+      method, URL, auth header, and JSON body: Corvass (auth in body), WhatsApp
+      (`Bearer` token + `messaging_product` payload), FCM (`to`/`notification` payload).
+      Twilio is excluded — it sends via the SDK global client, not a testable HttpClient.
+      Note: `FcmPushSender` builds the legacy `key =<serverkey>` auth header (Google's
+      legacy FCM server-key API is defunct) — the test asserts current behaviour; the
+      sender itself needs migrating to FCM HTTP v1 (separate Phase 3/5 item).
 
 ---
 
