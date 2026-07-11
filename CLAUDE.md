@@ -236,7 +236,8 @@ Never commit real secrets. Use `dotnet user-secrets` in development.
 ├── .env                          # all secrets, never committed to git
 ├── ulak-messenger/
 │   ├── Dockerfile                # mirrors deploy/Dockerfile in this repo
-│   └── publish/                  # dotnet publish linux-x64 output
+│   ├── publish/                  # dotnet publish linux-x64 output
+│   └── secrets/                  # FCM service-account key (chmod 600, volume-mounted ro)
 └── n8n/
     └── data/                     # n8n persistent volume
 ```
@@ -289,7 +290,7 @@ outage ([Infrastructure LESSONS](Messenger.Infrastructure/LESSONS.md) #6, platfo
 | `Corvass__{SmsUrl,ApiKey,ApiSecret,Originator}` | **`Corvass:`** (root) → `CorvassOptions` | **not** under `Messaging:` |
 | `Twilio__{AccountSid,AuthToken,FromNumber}` | **`Twilio:`** (root) → `TwilioOptions` | **not** under `Messaging:` |
 | `Sms__ProviderPrefixes__+90` / `__+1` | **`Sms:ProviderPrefixes`** (root) | usually baked in `appsettings.Production.json` |
-| `Messaging__FcmNotification__{ProjectId,CredentialsPath}` | `Messaging:FcmNotification` → `FcmNotificationOptions` | optional; FCM HTTP v1 needs a service-account JSON, fail-fast at send if unset |
+| `Messaging__FcmNotification__{ProjectId,CredentialsPath}` | `Messaging:FcmNotification` → `FcmNotificationOptions` | **live since 2026-07-11**: ProjectId `ulak-76ab5`; service-account key at `~/apps/ulak-messenger/secrets/fcm-service-account.json` on the host, mounted read-only at `/app/secrets/` (compose volume) — key is never in git or the image |
 
 Don't ship `SET_VIA_ENVIRONMENT_VARIABLE` placeholder secrets — they're non-empty, so `IsNullOrEmpty`
 fail-fast checks pass and a missing env var runs silently. Verify a new deployment with a **real
