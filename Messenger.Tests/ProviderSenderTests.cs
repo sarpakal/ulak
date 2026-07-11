@@ -111,29 +111,50 @@ public class ProviderSenderTests
     }
 
     [Fact]
-    public async Task Fcm_BuildsExpectedRequest()
+    public async Task Fcm_BuildsExpectedV1Request()
     {
         var handler = new CapturingHandler();
         var options = Options.Create(new FcmNotificationOptions
         {
-            ServerKey   = "fcm-server-key",
-            FcmEndpoint = "https://fcm.googleapis.com/fcm/send",
+            BaseUrl   = "https://fcm.googleapis.com",
+            ProjectId = "my-project",
+            // CredentialsPath unused — the token provider is faked below.
         });
-        var sender = new FcmPushSender(new HttpClient(handler), options);
+        var sender = new FcmPushSender(new HttpClient(handler), options, new FakeFcmTokenProvider("oauth-token-xyz"));
 
         await sender.SendAsync(new PushMessage("device-token", "Title Here", "Body here"));
 
         handler.Request!.Method.Should().Be(HttpMethod.Post);
-        handler.Request.RequestUri!.ToString().Should().Be("https://fcm.googleapis.com/fcm/send");
-        // Current (legacy, now-defunct) FCM header form the sender builds: scheme "key",
-        // parameter "=" + ServerKey. Asserted as-is; see summary note, not fixed here.
-        handler.Authorization!.Scheme.Should().Be("key");
-        handler.Authorization.Parameter.Should().Be("=fcm-server-key");
+        handler.Request.RequestUri!.ToString()
+            .Should().Be("https://fcm.googleapis.com/v1/projects/my-project/messages:send");
+        // HTTP v1: OAuth2 bearer, not the legacy server key.
+        handler.Authorization!.Scheme.Should().Be("Bearer");
+        handler.Authorization.Parameter.Should().Be("oauth-token-xyz");
 
+        // v1 envelope: { "message": { "token": ..., "notification": { "title", "body" } } }
         using var doc = JsonDocument.Parse(handler.Body);
-        var root = doc.RootElement;
-        Prop(root, "to").GetString().Should().Be("device-token");
-        Prop(Prop(root, "notification"), "title").GetString().Should().Be("Title Here");
-        Prop(Prop(root, "notification"), "body").GetString().Should().Be("Body here");
+        var msg = Prop(doc.RootElement, "message");
+        Prop(msg, "token").GetString().Should().Be("device-token");
+        Prop(Prop(msg, "notification"), "title").GetString().Should().Be("Title Here");
+        Prop(Prop(msg, "notification"), "body").GetString().Should().Be("Body here");
+    }
+
+    [Fact]
+    public async Task Fcm_UnconfiguredProject_ThrowsBeforeSending()
+    {
+        var handler = new CapturingHandler();
+        var options = Options.Create(new FcmNotificationOptions()); // ProjectId = ""
+        var sender = new FcmPushSender(new HttpClient(handler), options, new FakeFcmTokenProvider("unused"));
+
+        var act = () => sender.SendAsync(new PushMessage("device-token", "t", "b"));
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        handler.Request.Should().BeNull(); // failed fast — no HTTP call made
+    }
+
+    private sealed class FakeFcmTokenProvider(string token) : IFcmAccessTokenProvider
+    {
+        public Task<string> GetAccessTokenAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(token);
     }
 }

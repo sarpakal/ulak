@@ -166,8 +166,12 @@ Never commit real secrets. Use `dotnet user-secrets` in development.
 - **Always read before editing.** Use the actual file contents, not assumptions.
 - **One concern per class.** If a class is growing business logic, it's wrong.
 - **Build after changes.** Run `dotnet build` to verify changes compile before finishing.
-- **EF Core + Npgsql versions must match.** All packages pinned to `10.0.5` /
-  `10.0.1` (Npgsql). Do not upgrade individual packages — upgrade all together.
+- **EF Core + Npgsql versions must match.** EF Core packages are pinned to `10.0.7`
+  (Npgsql provider `10.0.1`). `Messenger.Infrastructure` declares explicit **public**
+  `Microsoft.EntityFrameworkCore` + `.Relational` at `10.0.7` so consumers inherit the
+  same version (`.Design` is `PrivateAssets=all` and does not flow — see
+  [Infrastructure LESSONS](Messenger.Infrastructure/LESSONS.md) #5). Do not upgrade
+  individual packages — move EF Core + Relational together and keep Npgsql's floor ≤ them.
 
 ---
 

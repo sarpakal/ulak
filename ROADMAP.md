@@ -42,13 +42,28 @@
       instead of a third concrete field in `RoutingSmsSender`
 - [ ] Activate real Twilio sending (`TwilioSmsSender` is a stub pending the Twilio NuGet
       package + credentials)
+- [x] Migrate `FcmPushSender` to the FCM HTTP v1 API — the legacy server-key API it used
+      (`Authorization: key=…`) was shut down by Google. Now POSTs to
+      `/v1/projects/{ProjectId}/messages:send` with an OAuth2 bearer from
+      `IFcmAccessTokenProvider` (`GoogleFcmAccessTokenProvider` mints/caches a token from a
+      service-account credential via `Google.Apis.Auth`). Options changed:
+      `FcmNotificationOptions` now carries `BaseUrl` / `ProjectId` / `CredentialsPath`
+      (all optional — the app boots without FCM and fails fast at send time). Requires a
+      Google service-account JSON on the VPS (`Fcm__CredentialsPath`) + `Fcm__ProjectId`.
+      Dead `PushNotificationSender` console stub removed.
+- [x] Realign EF Core package versions (the "versions move together" rule). `EFCore.Design`
+      `10.0.7` is `PrivateAssets=all` so it never flowed to consumers, who inherited only
+      EF Core `10.0.4` via Npgsql's minimum → CS1705/MSB3277 in any EF-touching consumer.
+      Fixed by adding explicit **public** `Microsoft.EntityFrameworkCore` +
+      `Microsoft.EntityFrameworkCore.Relational` `10.0.7` to `Messenger.Infrastructure`;
+      the test-project workaround pins were removed. ([Infrastructure LESSONS](Messenger.Infrastructure/LESSONS.md) #5)
 
 ---
 
 ## Phase 4 — Testing (open)
 
 `Messenger.Tests` scaffolded (xUnit v3 + FluentAssertions + Testcontainers, in
-`Messenger.slnx`). 15 tests, all passing (13 unit + 2 integration).
+`Messenger.slnx`). 16 tests, all passing (14 unit + 2 integration).
 
 - [x] Unit tests: `RoutingSmsSender` + `SmsOptions` (10 tests, all passing)
   - [x] Fallback behaviour — unmatched prefix throws `SmsException` when
@@ -73,17 +88,14 @@
       `MessagesApiTests`). `POST /api/messages/sms` is driven end-to-end against a real
       `postgres:16-alpine` container with the SMS provider swapped for a fake ISmsSender;
       asserts 200 + `Sent` log on success and 500 + `Failed` log on send failure.
-      Required `public partial class Program` in `Program.cs` and (test-project only) an
-      EF Core 10.0.7 pin to resolve a pre-existing Npgsql/EFCore.Design version drift
-      that surfaces as CS1705 once the test compiles against EF types.
+      Required `public partial class Program` in `Program.cs`. The pre-existing
+      Npgsql/EFCore version drift (CS1705) is now fixed at the source — see Phase 3.
 - [x] Provider senders behind fakes — verify request shapes for Corvass/WABA/FCM
       (`ProviderSenderTests`). A capturing `HttpMessageHandler` asserts each sender's
       method, URL, auth header, and JSON body: Corvass (auth in body), WhatsApp
-      (`Bearer` token + `messaging_product` payload), FCM (`to`/`notification` payload).
-      Twilio is excluded — it sends via the SDK global client, not a testable HttpClient.
-      Note: `FcmPushSender` builds the legacy `key =<serverkey>` auth header (Google's
-      legacy FCM server-key API is defunct) — the test asserts current behaviour; the
-      sender itself needs migrating to FCM HTTP v1 (separate Phase 3/5 item).
+      (`Bearer` token + `messaging_product` payload), FCM HTTP v1 (`Bearer` OAuth token +
+      `message:{token,notification}` envelope), plus a fail-fast test when FCM is
+      unconfigured. Twilio is excluded — it sends via the SDK global client.
 
 ---
 

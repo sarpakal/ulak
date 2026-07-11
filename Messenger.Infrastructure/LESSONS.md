@@ -168,14 +168,17 @@ The package set drifted: `EFCore.Design` was bumped to `10.0.7` without moving N
 Core pin lags at `10.0.4`). CLAUDE.md's rule "EF Core + Npgsql versions move together" was not
 followed on that bump.
 
-**Exact Fix (applied)**
-Test-project-local pin so the consumer resolves the same EF Core the Infrastructure assembly was
-built against — without touching Infrastructure's packages (a coordinated upgrade is the real fix
-but out of scope for the test work):
+**Exact Fix (resolved 2026-07-11)**
+Add explicit **public** EF Core references to `Messenger.Infrastructure` at the same version it
+compiles against, so the whole graph is coherent and consumers inherit `10.0.7` (not Npgsql's
+`10.0.4` floor). `EFCore.Design` stays `PrivateAssets=all` (tooling only); `EFCore` + `Relational`
+are the public, move-together pair:
 ```xml
 <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.7" />
 <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.7" />
 ```
-**Proper fix (tracked):** realign `Messenger.Infrastructure` so `EFCore.Design`, `EFCore`, and
-`Npgsql.EntityFrameworkCore.PostgreSQL` all sit on one consistent EF Core version, per the
-move-together rule. Until then, every EF-touching consumer of Infrastructure needs the pin above.
+The earlier test-project-local workaround pins were removed — consumers no longer need their own
+pin. Lesson: a `PrivateAssets=all` package (like `EFCore.Design`) does **not** flow its transitive
+version to consumers, so if it is the only thing pulling your real EF Core version, add an explicit
+public `Microsoft.EntityFrameworkCore` reference alongside it. Keep `EFCore` and `EFCore.Relational`
+on the same version, and confirm the Npgsql provider's floor is ≤ that version.

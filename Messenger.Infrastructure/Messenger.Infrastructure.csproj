@@ -8,6 +8,13 @@
 
   <ItemGroup>
     <PackageReference Include="CsvHelper" Version="33.1.0" />
+    <PackageReference Include="Google.Apis.Auth" Version="1.70.0" />
+    <!-- Explicit + public so consumers compile against the same EF Core this assembly does.
+         EFCore.Design is PrivateAssets=all (tooling only) and does not flow, so without these
+         a consumer inherited only EF Core 10.0.4 via Npgsql's minimum → CS1705 / MSB3277.
+         Core + Relational are pinned together per the "EF versions move together" rule. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.7" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.7" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.7">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

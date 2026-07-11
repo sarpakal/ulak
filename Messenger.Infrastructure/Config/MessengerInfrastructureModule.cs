@@ -41,6 +41,8 @@ namespace Messenger.Infrastructure.Config
                 .AddPolicyHandler(HttpPolicies.GetTimeoutPolicy())
                 .SetHandlerLifetime(TimeSpan.FromMinutes(5));
 
+            // FCM HTTP v1: OAuth2 token provider is a singleton (caches the Google credential).
+            services.AddSingleton<IFcmAccessTokenProvider, GoogleFcmAccessTokenProvider>();
             services.AddHttpClient<IPushNotificationSender, FcmPushSender>()
                 .AddPolicyHandler(HttpPolicies.GetRetryPolicy())
                 .AddPolicyHandler(HttpPolicies.GetTimeoutPolicy())
