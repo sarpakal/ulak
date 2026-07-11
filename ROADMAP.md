@@ -56,7 +56,9 @@
       service-account credential via `Google.Apis.Auth`). Options changed:
       `FcmNotificationOptions` now carries `BaseUrl` / `ProjectId` / `CredentialsPath`
       (all optional — the app boots without FCM and fails fast at send time). Requires a
-      Google service-account JSON on the VPS (`Fcm__CredentialsPath`) + `Fcm__ProjectId`.
+      Google service-account JSON on the VPS (`Messaging__FcmNotification__CredentialsPath`)
+      + `Messaging__FcmNotification__ProjectId` — the options bind under `Messaging:FcmNotification`,
+      NOT a root `Fcm:` section (the LESSONS #6 wrong-prefix trap).
       Dead `PushNotificationSender` console stub removed.
 - [x] FCM push hardening (2026-07-11). The FCM HttpClient moved to
       `Microsoft.Extensions.Http.Resilience` (`AddResilienceHandler` + `HttpRetryStrategyOptions`,

@@ -34,7 +34,9 @@ public class FcmPushSender : IPushNotificationSender
     {
         if (string.IsNullOrWhiteSpace(_options.ProjectId))
             throw new InvalidOperationException(
-                "FCM is not configured (set Fcm:ProjectId and Fcm:CredentialsPath).");
+                "FCM is not configured (set Messaging:FcmNotification:ProjectId and " +
+                "Messaging:FcmNotification:CredentialsPath — env keys " +
+                "Messaging__FcmNotification__ProjectId / __CredentialsPath).");
 
         var accessToken = await _tokenProvider.GetAccessTokenAsync(cancellationToken);
 
