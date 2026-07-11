@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
@@ -22,7 +21,7 @@ public class CorrelationIdMiddleware
     public async Task InvokeAsync(HttpContext context)
     {
         var header = context.Request.Headers[HeaderName];
-        var correlationId = string.IsNullOrWhiteSpace(header) ? Guid.NewGuid().ToString("N") : header.ToString();
+        var correlationId = string.IsNullOrWhiteSpace(header) ? Uuid7.NewUuid7().ToString("N") : header.ToString();
 
         // Expose correlation id to response
         context.Response.Headers[HeaderName] = correlationId;

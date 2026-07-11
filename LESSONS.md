@@ -6,7 +6,7 @@ Format per entry: **Symptom → Root Cause → Exact Fix**.
 Per-project failure logs live in each project's own `LESSONS.md`:
 - [`Messenger.Api/LESSONS.md`](Messenger.Api/LESSONS.md) — best-effort MessageLog, DbContext in controller
 - [`Messenger.Core/LESSONS.md`](Messenger.Core/LESSONS.md) — namespace artifact, duplicate options types
-- [`Messenger.Infrastructure/LESSONS.md`](Messenger.Infrastructure/LESSONS.md) — Twilio global Init, concrete-type routing, console fallback
+- [`Messenger.Infrastructure/LESSONS.md`](Messenger.Infrastructure/LESSONS.md) — Twilio global Init, concrete-type routing, console fallback, retry-loop `when`-filter dead code
 
 ---
 
@@ -98,3 +98,42 @@ git commit -m "feat: ..."
 ```
 If binary artefacts do get committed, remove them with `git rm -r --cached publish/` and
 a `git commit --amend` (if not yet pushed) or a follow-up commit.
+
+---
+
+## 4. Safety-critical fallbacks must fail *closed* — prefer a config flag over environment detection
+
+**Context:** `RoutingSmsSender` fell back to `ConsoleSmsService` (log + HTTP 200, no delivery)
+for any recipient prefix that matched no provider. The obvious fix was "only do that in
+Development" — i.e. gate the fallback on `IHostEnvironment.IsDevelopment()`. See the full
+incident in [Infrastructure LESSONS](Messenger.Infrastructure/LESSONS.md) #3.
+
+**Symptom / hazard**
+Environment-gated safety reproduces the very failure it's meant to prevent. `IsDevelopment()`
+reads `ASPNETCORE_ENVIRONMENT`; if that variable is unset, mis-set, or defaults differently on
+the VPS than assumed, the dangerous behaviour (silent message loss behind a 200) silently
+switches back on. Safety then depends on an ambient string being correct in every environment.
+
+**Root Cause**
+Coupling a safety decision to environment detection makes "safe" the *conditional* branch and
+"dangerous" the fallthrough. Any gap in environment configuration lands you in the dangerous
+branch by default.
+
+**Exact Fix — the transferable rule**
+Make the dangerous behaviour an explicit, named, default-`false` opt-in in the app's own
+config surface, so *absence of configuration is safe*:
+```csharp
+public bool AllowConsoleFallback { get; init; } = false;   // default = fail closed
+```
+Enable it only in `appsettings.Development.json` (which is gitignored here, so a fresh clone
+also fails closed). Do **not** inject `IHostEnvironment` into transport/service code to make
+this decision — it violates the options-pattern rule (solution [CLAUDE.md](CLAUDE.md) rule #5)
+and ties correctness to hosting semantics. Applies platform-wide: any base-service fallback,
+degraded-mode switch, or "skip the real call" shortcut should fail closed by default and be
+enabled by explicit config, never by environment name.
+
+**Corollary (testing):** the retry-exhaustion bug in
+[Infrastructure LESSONS](Messenger.Infrastructure/LESSONS.md) #4 was found because the new test
+asserted the *documented contract* (`SmsException` after exhaustion), not the observed
+behaviour. Write contract-first assertions — they catch code that silently drifted from its
+own doc comment.
