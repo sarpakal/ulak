@@ -1,5 +1,6 @@
 ﻿using Messenger.Core;
 using Messenger.Core.DTOs;
+using Messenger.Core.Exceptions;
 using Messenger.Infrastructure.Data;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -93,9 +94,20 @@ namespace Messenger.Api.Controllers
         {
             _logger.LogInformation("SendPush request to={Recipient}", msg.To);
             var status = "Sent";
+            string? errorCode = null;
             try
             {
                 await _messengerService.SendPushAsync(msg, ct);
+            }
+            catch (PushSendException ex)
+            {
+                // Classified provider failure — map to an honest status code so callers
+                // can react (410 → delete token, 429 → back off, 502 → retry later).
+                status = "Failed";
+                errorCode = ex.ProviderErrorCode ?? ex.Reason.ToString();
+                _logger.LogWarning(ex, "SendPush failed to={Recipient} reason={Reason} code={Code}",
+                    msg.To, ex.Reason, errorCode);
+                return MapPushFailure(ex, errorCode);
             }
             catch
             {
@@ -104,13 +116,30 @@ namespace Messenger.Api.Controllers
             }
             finally
             {
-                await WriteLogAsync("Push", msg.To, msg.Title, status);
+                await WriteLogAsync("Push", msg.To, msg.Title, status, errorCode);
             }
             _logger.LogInformation("SendPush completed to={Recipient}", msg.To);
             return Ok(new { status = "Push sent" });
         }
 
-        private async Task WriteLogAsync(string channel, string recipient, string? payload, string status)
+        private ObjectResult MapPushFailure(PushSendException ex, string errorCode)
+        {
+            var body = new { status = "failed", errorCode, detail = ex.Message };
+            switch (ex.Reason)
+            {
+                case PushSendFailureReason.InvalidToken:
+                    return StatusCode(StatusCodes.Status410Gone, body);
+                case PushSendFailureReason.QuotaExceeded:
+                    if (ex.RetryAfter is { } retryAfter && retryAfter > TimeSpan.Zero)
+                        Response.Headers.RetryAfter = ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString();
+                    return StatusCode(StatusCodes.Status429TooManyRequests, body);
+                default:
+                    return StatusCode(StatusCodes.Status502BadGateway, body);
+            }
+        }
+
+        private async Task WriteLogAsync(string channel, string recipient, string? payload, string status,
+            string? errorCode = null)
         {
             try
             {
@@ -120,6 +149,7 @@ namespace Messenger.Api.Controllers
                     Recipient = recipient,
                     Payload = payload,
                     Status = status,
+                    ErrorCode = errorCode,
                     CorrelationId = HttpContext.TraceIdentifier,
                 });
                 var saved = await _db.SaveChangesAsync(CancellationToken.None);

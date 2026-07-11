@@ -21,6 +21,7 @@ public class MessageLog
     public string Recipient { get; set; } = string.Empty;
     public string? Payload { get; set; }
     public string Status { get; set; } = string.Empty;
+    public string? ErrorCode { get; set; } // provider error code on failure, e.g. UNREGISTERED
     public string? CorrelationId { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }

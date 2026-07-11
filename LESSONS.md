@@ -6,7 +6,7 @@ Format per entry: **Symptom → Root Cause → Exact Fix**.
 Per-project failure logs live in each project's own `LESSONS.md`:
 - [`Messenger.Api/LESSONS.md`](Messenger.Api/LESSONS.md) — best-effort MessageLog, DbContext in controller
 - [`Messenger.Core/LESSONS.md`](Messenger.Core/LESSONS.md) — namespace artifact, duplicate options types
-- [`Messenger.Infrastructure/LESSONS.md`](Messenger.Infrastructure/LESSONS.md) — Twilio global Init, concrete-type routing, console fallback, retry-loop `when`-filter dead code
+- [`Messenger.Infrastructure/LESSONS.md`](Messenger.Infrastructure/LESSONS.md) — Twilio global Init, concrete-type routing, console fallback, retry-loop `when`-filter dead code, EF/Npgsql version drift, Corvass 200-on-rejection, Http.Resilience adoption traps (version trains, builder chain order)
 
 ---
 

@@ -88,7 +88,7 @@ Messenger.slnx
 │   │   └── MessengerDbContext.cs     # EF Core — MessageLog only
 │   └── Config/
 │       ├── MessengerInfrastructureModule.cs   # All DI registrations
-│       └── HttpPolicies.cs                    # Polly retry + timeout policies
+│       └── HttpPolicies.cs                    # Legacy Polly policies + FCM resilience pipeline
 │
 └── Messenger.Api/                   # ASP.NET Core Web API
     ├── Controllers/
@@ -124,6 +124,22 @@ Messenger.slnx
 // Push
 { "to": "device-fcm-token", "title": "Title", "body": "Body" }
 ```
+
+### Push response codes (`/api/messages/push`)
+
+Push failures are classified (`PushSendException` in `Messenger.Core.Exceptions`) and mapped
+to an honest contract so consumers can manage device tokens; failures are recorded in
+`MessageLogs.ErrorCode`:
+
+| HTTP | `errorCode` | Meaning | Consumer action |
+|------|-------------|---------|-----------------|
+| 200 | — | Delivered to FCM | — |
+| **410 Gone** | `UNREGISTERED` / `INVALID_ARGUMENT` | Dead or malformed device token | **Delete the token** |
+| **429** | `QUOTA_EXCEEDED` | FCM throttling persisted after retries (`Retry-After` passed through) | Back off, retry later |
+| **502** | provider code (e.g. `UNAVAILABLE`, `SENDER_ID_MISMATCH`) | FCM/network fault or ULAK config problem | Retry later; do NOT delete tokens |
+| 500 | — | ULAK bug/misconfiguration (e.g. FCM unconfigured) | Report |
+
+Other channels keep the original shape: `200 {status}` on success, 500 on failure.
 
 ---
 
@@ -171,6 +187,12 @@ Never commit real secrets. Use `dotnet user-secrets` in development.
   same version (`.Design` is `PrivateAssets=all` and does not flow — see
   [Infrastructure LESSONS](Messenger.Infrastructure/LESSONS.md) #5). Do not upgrade
   individual packages — move EF Core + Relational together and keep Npgsql's floor ≤ them.
+- **`Microsoft.Extensions.*` has two version trains.** Runtime-train packages
+  (`Http`, `Http.Polly`, `Options`, `Configuration.*`) use `10.0.x` servicing patches — currently
+  pinned at `10.0.9`; dotnet/extensions-train packages (`Http.Resilience`, currently `10.7.0`)
+  use `10.x.0` feature versions and dictate the runtime-train servicing floor. On NU1605, bump
+  the runtime-train pins (non-EF only) to the demanded patch — see
+  [Infrastructure LESSONS](Messenger.Infrastructure/LESSONS.md) #7.
 
 ---
 
@@ -185,7 +207,7 @@ Never commit real secrets. Use `dotnet user-secrets` in development.
 | SMS US/CA    | Twilio (NuGet stub — not yet activated) |
 | WhatsApp     | WhatsApp Business API (WABA)            |
 | Push         | Firebase Cloud Messaging (FCM)          |
-| Resilience   | Polly (retry + timeout on HttpClient)   |
+| Resilience   | Polly v8 via `Microsoft.Extensions.Http.Resilience` on the FCM client (native `Retry-After` on 429); legacy `Http.Polly` policies on Corvass/WhatsApp |
 | IDE          | Visual Studio 2026                      |
 | OS           | Windows 11                              |
 

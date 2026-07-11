@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using FluentAssertions;
 using Messenger.Core.DTOs;
+using Messenger.Core.Exceptions;
 using Messenger.Core.Models;
 using Messenger.Core.Options;
 using Messenger.Infrastructure.Senders;
@@ -18,11 +19,13 @@ namespace Messenger.Tests;
 /// </summary>
 public class ProviderSenderTests
 {
-    // Captures the request and its body, then returns 200 with the given body. Defaults to a
-    // Corvass success payload (Response.code == 0) so the Corvass sender's body check passes;
-    // WhatsApp/FCM ignore the body.
+    // Captures the request and its body, then returns the given status with the given body.
+    // Defaults to a 200 with a Corvass success payload (Response.code == 0) so the Corvass
+    // sender's body check passes; WhatsApp/FCM ignore success bodies.
     private sealed class CapturingHandler(
-        string responseJson = """{"Response":{"code":0,"description":"OK"},"PacketId":1}""") : HttpMessageHandler
+        string responseJson = """{"Response":{"code":0,"description":"OK"},"PacketId":1}""",
+        HttpStatusCode statusCode = HttpStatusCode.OK,
+        int? retryAfterSeconds = null) : HttpMessageHandler
     {
         public HttpRequestMessage? Request { get; private set; }
         public string Body { get; private set; } = "";
@@ -36,10 +39,14 @@ public class ProviderSenderTests
             if (request.Content is not null)
                 Body = await request.Content.ReadAsStringAsync(cancellationToken);
 
-            return new HttpResponseMessage(HttpStatusCode.OK)
+            var response = new HttpResponseMessage(statusCode)
             {
                 Content = new StringContent(responseJson),
             };
+            if (retryAfterSeconds is { } seconds)
+                response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(
+                    TimeSpan.FromSeconds(seconds));
+            return response;
         }
     }
 
@@ -172,6 +179,115 @@ public class ProviderSenderTests
 
         await act.Should().ThrowAsync<InvalidOperationException>();
         handler.Request.Should().BeNull(); // failed fast — no HTTP call made
+    }
+
+    // ── FCM error classification (sender sees the FINAL response, post-retries) ──────────
+
+    private static FcmPushSender CreateFcmSender(CapturingHandler handler) =>
+        new(new HttpClient(handler),
+            Options.Create(new FcmNotificationOptions { ProjectId = "my-project" }),
+            new FakeFcmTokenProvider("oauth-token-xyz"));
+
+    private static string FcmErrorBody(int code, string status, string errorCode) => $$"""
+        {
+          "error": {
+            "code": {{code}},
+            "message": "simulated",
+            "status": "{{status}}",
+            "details": [
+              { "@type": "type.googleapis.com/google.firebase.fcm.v1.FcmError", "errorCode": "{{errorCode}}" }
+            ]
+          }
+        }
+        """;
+
+    [Fact]
+    public async Task Fcm_Unregistered404_ThrowsInvalidToken()
+    {
+        var handler = new CapturingHandler(
+            FcmErrorBody(404, "NOT_FOUND", "UNREGISTERED"), HttpStatusCode.NotFound);
+        var sender = CreateFcmSender(handler);
+
+        var act = () => sender.SendAsync(new PushMessage("dead-token", "t", "b"));
+
+        var ex = (await act.Should().ThrowAsync<PushSendException>()).Which;
+        ex.Reason.Should().Be(PushSendFailureReason.InvalidToken);
+        ex.ProviderErrorCode.Should().Be("UNREGISTERED");
+        ex.HttpStatusCode.Should().Be(404);
+    }
+
+    [Fact]
+    public async Task Fcm_InvalidArgument400_ThrowsInvalidToken()
+    {
+        var handler = new CapturingHandler(
+            FcmErrorBody(400, "INVALID_ARGUMENT", "INVALID_ARGUMENT"), HttpStatusCode.BadRequest);
+        var sender = CreateFcmSender(handler);
+
+        var act = () => sender.SendAsync(new PushMessage("malformed-token", "t", "b"));
+
+        var ex = (await act.Should().ThrowAsync<PushSendException>()).Which;
+        ex.Reason.Should().Be(PushSendFailureReason.InvalidToken);
+        ex.ProviderErrorCode.Should().Be("INVALID_ARGUMENT");
+    }
+
+    [Fact]
+    public async Task Fcm_QuotaExceeded429_ThrowsQuota_WithRetryAfter()
+    {
+        var handler = new CapturingHandler(
+            FcmErrorBody(429, "RESOURCE_EXHAUSTED", "QUOTA_EXCEEDED"),
+            HttpStatusCode.TooManyRequests, retryAfterSeconds: 30);
+        var sender = CreateFcmSender(handler);
+
+        var act = () => sender.SendAsync(new PushMessage("token", "t", "b"));
+
+        var ex = (await act.Should().ThrowAsync<PushSendException>()).Which;
+        ex.Reason.Should().Be(PushSendFailureReason.QuotaExceeded);
+        ex.ProviderErrorCode.Should().Be("QUOTA_EXCEEDED");
+        ex.RetryAfter.Should().Be(TimeSpan.FromSeconds(30));
+    }
+
+    [Fact]
+    public async Task Fcm_ServerError500_ThrowsProviderError()
+    {
+        var handler = new CapturingHandler(
+            FcmErrorBody(500, "INTERNAL", "INTERNAL"), HttpStatusCode.InternalServerError);
+        var sender = CreateFcmSender(handler);
+
+        var act = () => sender.SendAsync(new PushMessage("token", "t", "b"));
+
+        var ex = (await act.Should().ThrowAsync<PushSendException>()).Which;
+        ex.Reason.Should().Be(PushSendFailureReason.ProviderError);
+        ex.ProviderErrorCode.Should().Be("INTERNAL");
+    }
+
+    [Fact]
+    public async Task Fcm_SenderIdMismatch403_IsProviderError_NotDeadToken()
+    {
+        // 403 is an ULAK credential/project mismatch — callers must NOT delete tokens over it.
+        var handler = new CapturingHandler(
+            FcmErrorBody(403, "PERMISSION_DENIED", "SENDER_ID_MISMATCH"), HttpStatusCode.Forbidden);
+        var sender = CreateFcmSender(handler);
+
+        var act = () => sender.SendAsync(new PushMessage("token", "t", "b"));
+
+        var ex = (await act.Should().ThrowAsync<PushSendException>()).Which;
+        ex.Reason.Should().Be(PushSendFailureReason.ProviderError);
+        ex.ProviderErrorCode.Should().Be("SENDER_ID_MISMATCH");
+    }
+
+    [Fact]
+    public async Task Fcm_NonJsonErrorBody_DoesNotCrashClassification()
+    {
+        var handler = new CapturingHandler(
+            "<html>Bad Gateway</html>", HttpStatusCode.BadGateway);
+        var sender = CreateFcmSender(handler);
+
+        var act = () => sender.SendAsync(new PushMessage("token", "t", "b"));
+
+        var ex = (await act.Should().ThrowAsync<PushSendException>()).Which;
+        ex.Reason.Should().Be(PushSendFailureReason.ProviderError);
+        ex.ProviderErrorCode.Should().BeNull();
+        ex.HttpStatusCode.Should().Be(502);
     }
 
     private sealed class FakeFcmTokenProvider(string token) : IFcmAccessTokenProvider

@@ -16,6 +16,7 @@ all provider logic lives in `Messenger.Infrastructure`.
 3. **Options pattern only.** Never inject `IConfiguration` into a controller or service.
 4. **`MessageLogs` write stays best-effort.** `WriteLogAsync` swallows exceptions by
    design — a logging failure must never fail a delivery response. Do not rethrow.
+   On failure it also records `ErrorCode` (nullable, provider code like `UNREGISTERED`).
 5. **`CorrelationIdMiddleware` stays first** in the pipeline (before anything that logs).
 6. **`UsePathBase("/messenger")` stays** — the VPS-internal route depends on it.
 
@@ -47,5 +48,7 @@ Logging is JSON console with scopes — correlation ids appear in `docker logs u
 1. DTO in `Messenger.Core/DTOs/` (record), interface method if a new channel
 2. Sender in `Messenger.Infrastructure/Senders/`, registered in `MessengerInfrastructureModule`
 3. Facade method on `MessengerService`
-4. Controller action: log → try/send → `finally WriteLogAsync` → `Ok`/throw (match existing shape)
+4. Controller action: log → try/send → `finally WriteLogAsync` → `Ok`/throw (match existing shape).
+   Exception: push catches `PushSendException` and maps it to 410/429/502 with a structured
+   body instead of rethrowing (see the push response-code table in the solution CLAUDE.md)
 5. Consider rate limiting and auth — neither is applied globally (see [SECURITY.md](../SECURITY.md))

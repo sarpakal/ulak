@@ -19,12 +19,18 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.7" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.7" />
-    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.7" />
+    <!-- Microsoft.Extensions.* pinned at the 10.0.9 servicing patch — Http.Resilience 10.7.0
+         requires >= 10.0.9 of the runtime-train packages (NU1605 downgrade otherwise).
+         EF Core packages above are a separate family and stay pinned at 10.0.7. -->
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.9" />
     <PackageReference Include="Polly" Version="8.6.6" />
-    <PackageReference Include="Microsoft.Extensions.Http.Polly" Version="10.0.7" />
-    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.7" />
+    <PackageReference Include="Microsoft.Extensions.Http.Polly" Version="10.0.9" />
+    <!-- Polly v8 resilience handler — used by the FCM client only (native Retry-After on 429).
+         Corvass/WhatsApp stay on the legacy Http.Polly policies above. -->
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.7.0" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.9" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
     <PackageReference Include="Twilio" Version="7.14.9" />
   </ItemGroup>

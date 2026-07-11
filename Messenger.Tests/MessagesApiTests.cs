@@ -1,7 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using FluentAssertions;
 using Messenger.Core.DTOs;
+using Messenger.Core.Exceptions;
 using Messenger.Core.Interfaces;
 using Messenger.Infrastructure.Senders;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -84,5 +86,104 @@ public sealed class MessagesApiTests(PostgresFixture fx)
     {
         public Task SendAsync(SmsMessage message, CancellationToken cancellationToken = default)
             => throw new SmsException(string.Join(", ", message.To), "Corvass", "simulated provider failure");
+    }
+
+    // ── Push: PushSendException → honest status codes + ErrorCode in MessageLogs ─────────
+
+    private WebApplicationFactory<Program> CreatePushApp(IPushNotificationSender pushSender) =>
+        new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("ConnectionStrings:UlakConnection", fx.ConnectionString);
+            builder.ConfigureTestServices(services =>
+            {
+                // Replace the FCM typed client with a fake so no external call is made.
+                services.RemoveAll<IPushNotificationSender>();
+                services.AddScoped(_ => pushSender);
+            });
+        });
+
+    [Fact]
+    public async Task PostPush_Success_Returns200_AndLogsSent_WithNullErrorCode()
+    {
+        using var app = CreatePushApp(new FakePushSender(null));
+        var client = app.CreateClient();
+        const string to = "push-token-ok";
+
+        var resp = await client.PostAsJsonAsync("/api/messages/push", new PushMessage(to, "title", "body"));
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        await using var db = fx.NewDbContext();
+        var log = await db.MessageLogs.SingleAsync(l => l.Recipient == to);
+        log.Channel.Should().Be("Push");
+        log.Status.Should().Be("Sent");
+        log.ErrorCode.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task PostPush_DeadToken_Returns410_AndLogsErrorCode()
+    {
+        using var app = CreatePushApp(new FakePushSender(new PushSendException(
+            PushSendFailureReason.InvalidToken, "FCM send failed (404 UNREGISTERED)",
+            "UNREGISTERED", 404)));
+        var client = app.CreateClient();
+        const string to = "push-token-dead";
+
+        var resp = await client.PostAsJsonAsync("/api/messages/push", new PushMessage(to, "title", "body"));
+
+        resp.StatusCode.Should().Be(HttpStatusCode.Gone);
+        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+        doc.RootElement.GetProperty("status").GetString().Should().Be("failed");
+        doc.RootElement.GetProperty("errorCode").GetString().Should().Be("UNREGISTERED");
+
+        await using var db = fx.NewDbContext();
+        var log = await db.MessageLogs.SingleAsync(l => l.Recipient == to);
+        log.Status.Should().Be("Failed");
+        log.ErrorCode.Should().Be("UNREGISTERED");
+    }
+
+    [Fact]
+    public async Task PostPush_QuotaExceeded_Returns429_WithRetryAfterHeader()
+    {
+        using var app = CreatePushApp(new FakePushSender(new PushSendException(
+            PushSendFailureReason.QuotaExceeded, "FCM send failed (429 QUOTA_EXCEEDED)",
+            "QUOTA_EXCEEDED", 429, TimeSpan.FromSeconds(30))));
+        var client = app.CreateClient();
+        const string to = "push-token-throttled";
+
+        var resp = await client.PostAsJsonAsync("/api/messages/push", new PushMessage(to, "title", "body"));
+
+        resp.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+        resp.Headers.RetryAfter!.Delta.Should().Be(TimeSpan.FromSeconds(30));
+
+        await using var db = fx.NewDbContext();
+        var log = await db.MessageLogs.SingleAsync(l => l.Recipient == to);
+        log.Status.Should().Be("Failed");
+        log.ErrorCode.Should().Be("QUOTA_EXCEEDED");
+    }
+
+    [Fact]
+    public async Task PostPush_ProviderError_Returns502()
+    {
+        using var app = CreatePushApp(new FakePushSender(new PushSendException(
+            PushSendFailureReason.ProviderError, "FCM send failed (503 UNAVAILABLE)",
+            "UNAVAILABLE", 503)));
+        var client = app.CreateClient();
+        const string to = "push-token-outage";
+
+        var resp = await client.PostAsJsonAsync("/api/messages/push", new PushMessage(to, "title", "body"));
+
+        resp.StatusCode.Should().Be(HttpStatusCode.BadGateway);
+
+        await using var db = fx.NewDbContext();
+        var log = await db.MessageLogs.SingleAsync(l => l.Recipient == to);
+        log.Status.Should().Be("Failed");
+        log.ErrorCode.Should().Be("UNAVAILABLE");
+    }
+
+    private sealed class FakePushSender(PushSendException? failure) : IPushNotificationSender
+    {
+        public Task SendAsync(PushMessage message, CancellationToken cancellationToken = default)
+            => failure is null ? Task.CompletedTask : throw failure;
     }
 }

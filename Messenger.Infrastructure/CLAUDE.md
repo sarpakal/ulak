@@ -9,7 +9,11 @@ Provider implementations + EF Core + DI module. Implements `Messenger.Core` inte
 ## Hard rules
 
 1. **All DI lives in `MessengerInfrastructureModule`.** New sender → register it there,
-   with Polly policies if it owns an HttpClient.
+   with Polly policies if it owns an HttpClient. Two styles coexist: Corvass/WhatsApp use
+   the legacy `AddPolicyHandler(HttpPolicies.GetRetryPolicy/GetTimeoutPolicy)` pair; FCM is
+   the reference for the Polly v8 style — `AddResilienceHandler("…", HttpPolicies.ConfigureFcmResilience)`
+   (native `Retry-After` on 429, never retries 400/404). Prefer the resilience handler for
+   new senders.
 2. **Provider selection is config-driven.** `RoutingSmsSender` resolves via
    `SmsOptions.ResolveProvider` (`Sms:ProviderPrefixes`). Never hardcode a provider choice.
 3. **Options pattern only** — `IOptions<T>`, never `IConfiguration`.

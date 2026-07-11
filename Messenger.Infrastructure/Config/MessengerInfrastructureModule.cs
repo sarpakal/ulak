@@ -43,10 +43,11 @@ namespace Messenger.Infrastructure.Config
 
             // FCM HTTP v1: OAuth2 token provider is a singleton (caches the Google credential).
             services.AddSingleton<IFcmAccessTokenProvider, GoogleFcmAccessTokenProvider>();
+            // Polly v8 resilience handler (native Retry-After on 429) — FCM only;
+            // Corvass/WhatsApp above stay on the legacy policy pair.
             services.AddHttpClient<IPushNotificationSender, FcmPushSender>()
-                .AddPolicyHandler(HttpPolicies.GetRetryPolicy())
-                .AddPolicyHandler(HttpPolicies.GetTimeoutPolicy())
-                .SetHandlerLifetime(TimeSpan.FromMinutes(5));
+                .SetHandlerLifetime(TimeSpan.FromMinutes(5))
+                .AddResilienceHandler("fcm-pipeline", HttpPolicies.ConfigureFcmResilience);
 
             // ── Messenger facade ──────────────────────────────────────────────
             services.AddScoped<MessengerService>();

@@ -58,6 +58,21 @@
       (all optional — the app boots without FCM and fails fast at send time). Requires a
       Google service-account JSON on the VPS (`Fcm__CredentialsPath`) + `Fcm__ProjectId`.
       Dead `PushNotificationSender` console stub removed.
+- [x] FCM push hardening (2026-07-11). The FCM HttpClient moved to
+      `Microsoft.Extensions.Http.Resilience` (`AddResilienceHandler` + `HttpRetryStrategyOptions`,
+      configured in `HttpPolicies.ConfigureFcmResilience`) — retries on 429/5xx/408/transport
+      **honoring `Retry-After` natively**, never retries 400/404 dead-token responses; Corvass/
+      WhatsApp stay on the legacy `AddPolicyHandler` policies. `FcmPushSender` now parses the
+      FCM v1 error payload (`error.details[].errorCode`) and throws a classified
+      `PushSendException` (`Messenger.Core.Exceptions`) instead of a bare `EnsureSuccessStatusCode`.
+      `POST /api/messages/push` maps it to an honest contract: **410 Gone** (UNREGISTERED /
+      INVALID_ARGUMENT → caller deletes the device token), **429** (+`Retry-After` passthrough),
+      **502** (provider fault, incl. SENDER_ID_MISMATCH — a ULAK config problem, not a dead
+      token). `MessageLogs` gained a nullable `ErrorCode` column
+      (`AddErrorCodeToMessageLog` migration) so dead-token events are queryable on the VPS.
+      Consumer-side device-token storage/cleanup (Notifications.Api) is a deliberate follow-up
+      built on this contract. Note: `Microsoft.Extensions.*` (non-EF) pins moved 10.0.7 → 10.0.9
+      (required by Http.Resilience 10.7.0; EF pins untouched).
 - [x] Realign EF Core package versions (the "versions move together" rule). `EFCore.Design`
       `10.0.7` is `PrivateAssets=all` so it never flowed to consumers, who inherited only
       EF Core `10.0.4` via Npgsql's minimum → CS1705/MSB3277 in any EF-touching consumer.
@@ -70,7 +85,7 @@
 ## Phase 4 — Testing (open)
 
 `Messenger.Tests` scaffolded (xUnit v3 + FluentAssertions + Testcontainers, in
-`Messenger.slnx`). 16 tests, all passing (14 unit + 2 integration).
+`Messenger.slnx`). 31 tests, all passing (25 unit + 6 integration).
 
 - [x] Unit tests: `RoutingSmsSender` + `SmsOptions` (10 tests, all passing)
   - [x] Fallback behaviour — unmatched prefix throws `SmsException` when
@@ -103,6 +118,17 @@
       (`Bearer` token + `messaging_product` payload), FCM HTTP v1 (`Bearer` OAuth token +
       `message:{token,notification}` envelope), plus a fail-fast test when FCM is
       unconfigured. Twilio is excluded — it sends via the SDK global client.
+- [x] FCM push hardening tests (see Phase 3 entry). `ProviderSenderTests`: error
+      classification from real v1 error payloads — 404/UNREGISTERED and 400/INVALID_ARGUMENT
+      → `InvalidToken`, 429/QUOTA_EXCEEDED → `QuotaExceeded` (+`RetryAfter` capture),
+      500/INTERNAL and 403/SENDER_ID_MISMATCH → `ProviderError`, non-JSON body doesn't crash
+      the parser. `FcmResilienceTests`: builds the production pipeline via
+      `HttpPolicies.ConfigureFcmResilience` — 429 retried honoring `Retry-After: 0` (3 attempts
+      then success, fast because the header overrides exponential backoff), 400/404 never
+      retried, exhausted retries surface the final 429 after 4 attempts. `MessagesApiTests`:
+      `POST /api/messages/push` end-to-end against Postgres — 200/`Sent`, 410 + `ErrorCode`
+      `UNREGISTERED` logged, 429 + `Retry-After` header, 502; fake `IPushNotificationSender`
+      throwing `PushSendException`.
 
 ---
 

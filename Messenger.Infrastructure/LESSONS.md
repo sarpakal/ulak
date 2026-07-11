@@ -215,3 +215,59 @@ The throw propagates through `RoutingSmsSender`'s retry loop → `SmsException` 
 `Failed` log, so a rejected send now fails loudly. General rule: for any provider that can return a
 non-2xx *result* inside a 2xx *response*, validate the body, not just the status — otherwise a
 provider-side rejection is indistinguishable from success.
+
+---
+
+## 7. Adopting `Microsoft.Extensions.Http.Resilience` — two traps (version trains + builder chain order)
+
+**Context:** The FCM HttpClient was migrated from legacy `AddPolicyHandler` (Microsoft.Extensions.Http.Polly)
+to a Polly v8 resilience handler (`AddResilienceHandler` + `HttpRetryStrategyOptions`) for native
+`Retry-After` handling (2026-07-11, ROADMAP Phase 3).
+
+**Symptom (trap 1 — NU1605 on restore)**
+Adding `Microsoft.Extensions.Http.Resilience` `10.7.0` broke restore:
+`NU1605: Detected package downgrade: Microsoft.Extensions.Configuration.Binder from 10.0.9 to 10.0.7`
+— even though every existing `Microsoft.Extensions.*` pin was a consistent-looking `10.0.7`.
+
+**Root Cause**
+Two package families share the `Microsoft.Extensions.*` prefix but version on **different trains**:
+- **Runtime/aspnetcore train** (`10.0.x`): `Http`, `Http.Polly`, `Options`, `Configuration.*` — servicing patches.
+- **dotnet/extensions train** (`10.x.0`): `Http.Resilience`, `Http.Diagnostics`, etc. — feature releases.
+
+`Http.Resilience 10.7.0` transitively requires runtime-train packages at ≥ `10.0.9`, so explicit
+`10.0.7` pins become downgrades. The version numbers look interchangeable; they are not.
+
+**Exact Fix (trap 1)**
+Move the **non-EF** `Microsoft.Extensions.*` pins to the servicing patch the new package demands
+(`10.0.7` → `10.0.9`). EF Core + Npgsql pins are a separate family and stay untouched (the
+"EF versions move together" rule, LESSONS #5). Rule: when adding a dotnet/extensions-train package,
+expect to bump the runtime-train pins to its required servicing floor — check the NU1605 chain, don't
+pick versions by visual similarity.
+
+**Symptom (trap 2 — CS1929 on build)**
+```csharp
+services.AddHttpClient<IPushNotificationSender, FcmPushSender>()
+    .AddResilienceHandler("fcm-pipeline", ...)
+    .SetHandlerLifetime(TimeSpan.FromMinutes(5));   // CS1929
+```
+`'IHttpResiliencePipelineBuilder' does not contain a definition for 'SetHandlerLifetime'`.
+
+**Root Cause**
+Unlike `AddPolicyHandler` (which returns `IHttpClientBuilder` and chains freely),
+`AddResilienceHandler` returns `IHttpResiliencePipelineBuilder` — a narrower builder that ends the
+`IHttpClientBuilder` chain.
+
+**Exact Fix (trap 2)**
+Chain all `IHttpClientBuilder` extensions **before** `AddResilienceHandler`, which goes last:
+```csharp
+services.AddHttpClient<IPushNotificationSender, FcmPushSender>()
+    .SetHandlerLifetime(TimeSpan.FromMinutes(5))
+    .AddResilienceHandler("fcm-pipeline", HttpPolicies.ConfigureFcmResilience);
+```
+Related design choice worth keeping: `ConfigureFcmResilience` uses a **custom** handler, not
+`AddStandardResilienceHandler` — the standard one silently adds a circuit breaker, rate limiter, and
+30s total timeout on top of retry+timeout, i.e. new untested production behavior when the goal was
+parity plus native `Retry-After`. Its retry defaults are the useful part: `ShouldHandle = IsTransient`
+(429/5xx/408/`HttpRequestException`/`TimeoutRejectedException` — 400/404 never retried, so dead-token
+responses surface immediately) and `ShouldRetryAfterHeader = true` (provider `Retry-After` overrides
+computed backoff). `FcmResilienceTests` proves both by building the production pipeline.
