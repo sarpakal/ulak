@@ -11,18 +11,19 @@ namespace Messenger.Tests;
 
 public class RoutingSmsSenderTests
 {
-    // Standard routing table: +90 → Corvass, +1 → Twilio. A +44 number matches neither.
+    // Default routing table: +90 → Corvass, +1 → Twilio. A +44 number matches neither.
     private static RoutingSmsSender BuildSender(
         bool allowConsoleFallback,
         HttpClient? corvassHttp = null,
-        int retryCount = 0)
+        int retryCount = 0,
+        Dictionary<string, string>? providerPrefixes = null)
     {
         var smsOptions = Options.Create(new SmsOptions
         {
             RetryCount = retryCount,
             RetryDelayMs = 0,
             AllowConsoleFallback = allowConsoleFallback,
-            ProviderPrefixes = new Dictionary<string, string>
+            ProviderPrefixes = providerPrefixes ?? new Dictionary<string, string>
             {
                 ["+90"] = "Corvass",
                 ["+1"]  = "Twilio",
@@ -47,19 +48,24 @@ public class RoutingSmsSenderTests
             corvass, twilio, console, smsOptions, NullLogger<RoutingSmsSender>.Instance);
     }
 
-    // Counts calls and always returns the given status so CorvassSmsSender throws each attempt.
+    // Counts calls, records each request body, and always returns the given status so
+    // CorvassSmsSender throws on every attempt.
     private sealed class CountingHandler(HttpStatusCode status) : HttpMessageHandler
     {
         public int Calls { get; private set; }
+        public List<string> Bodies { get; } = [];
 
-        protected override Task<HttpResponseMessage> SendAsync(
+        protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Calls++;
-            return Task.FromResult(new HttpResponseMessage(status)
+            if (request.Content is not null)
+                Bodies.Add(await request.Content.ReadAsStringAsync(cancellationToken));
+
+            return new HttpResponseMessage(status)
             {
                 Content = new StringContent("provider failure"),
-            });
+            };
         }
     }
 
@@ -105,5 +111,51 @@ public class RoutingSmsSenderTests
         var ex = (await act.Should().ThrowAsync<SmsException>()).Which;
         ex.ProviderName.Should().Be("Corvass");
         handler.Calls.Should().Be(3); // RetryCount (2) + 1 initial attempt
+    }
+
+    [Fact]
+    public async Task SendAsync_MixedPrefixBatch_GroupsRecipientsByProvider()
+    {
+        // Batch has one +90 (Corvass) and one +1 (Twilio) recipient. GroupBy yields the
+        // Corvass group first (its recipient appears first), so it dispatches first; with
+        // Corvass stubbed to fail, SendAsync throws before the Twilio group is reached —
+        // which is what lets us test this at all, since TwilioSmsSender can't be exercised
+        // in a unit test under the concrete-type design (LESSONS #2). We assert Corvass
+        // received ONLY its +90 recipient, proving the batch was split by provider.
+        var handler = new CountingHandler(HttpStatusCode.InternalServerError);
+        var sender = BuildSender(
+            allowConsoleFallback: false,
+            corvassHttp: new HttpClient(handler),
+            retryCount: 0);
+        var message = new SmsMessage(["+905551112233", "+15551112222"], "hello");
+
+        var act = () => sender.SendAsync(message);
+
+        var ex = (await act.Should().ThrowAsync<SmsException>()).Which;
+        ex.ProviderName.Should().Be("Corvass");
+        ex.PhoneNumber.Should().Contain("+905551112233").And.NotContain("+15551112222");
+        handler.Calls.Should().Be(1); // retryCount 0 → single attempt for the Corvass group
+        // Match on digits only — System.Text.Json escapes the leading '+' to its
+        // unicode form in the JSON body, so a literal "+" substring won't be found.
+        handler.Bodies.Should().ContainSingle()
+            .Which.Should().Contain("905551112233").And.NotContain("15551112222");
+    }
+
+    [Fact]
+    public async Task SendAsync_PrefixMapsToUnregisteredProvider_ThrowsSmsException()
+    {
+        // A prefix mapped to a provider name with no registered sender is a config bug,
+        // not a routing miss — it must throw, never silently fall through to console
+        // (even with the console fallback enabled, since only unmatched prefixes are gated).
+        var sender = BuildSender(
+            allowConsoleFallback: true,
+            providerPrefixes: new Dictionary<string, string> { ["+44"] = "Vodafone" });
+        var message = new SmsMessage(["+441234567890"], "hello");
+
+        var act = () => sender.SendAsync(message);
+
+        var ex = (await act.Should().ThrowAsync<SmsException>()).Which;
+        ex.ProviderName.Should().Be("Vodafone");
+        ex.Message.Should().Contain("unknown provider");
     }
 }

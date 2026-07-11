@@ -49,18 +49,24 @@
 
 `Messenger.Tests` scaffolded (xUnit v3 + FluentAssertions, in `Messenger.slnx`).
 
-- [ ] Unit tests: `RoutingSmsSender`
+- [x] Unit tests: `RoutingSmsSender` + `SmsOptions` (10 tests, all passing)
   - [x] Fallback behaviour — unmatched prefix throws `SmsException` when
         `Sms:AllowConsoleFallback` is false; routes to console when true
         (`RoutingSmsSenderTests`)
-  - [ ] Prefix grouping — mixed-prefix batch fans out per provider
+  - [x] Prefix grouping — mixed-prefix batch is split per provider; Corvass receives
+        only its `+90` recipient (`RoutingSmsSenderTests`). Note: the `+1`/Twilio
+        branch can't be exercised in a unit test under the concrete-type design
+        ([Infrastructure LESSONS](Messenger.Infrastructure/LESSONS.md) #2) — the test
+        asserts the Corvass-side split and stops before the Twilio dispatch.
   - [x] Retry exhaustion — `SmsException` (with provider context) after
         `RetryCount + 1` attempts (`RoutingSmsSenderTests`). This test caught a bug:
         the old catch filter `when (attempt < totalAttempts)` let the final attempt's
         raw exception escape unwrapped, making `throw new SmsException` dead code
         ([Infrastructure LESSONS](Messenger.Infrastructure/LESSONS.md) #4).
-  - [ ] Unknown provider name (prefix maps to an unregistered sender) throws
-  - [ ] `SmsOptions.ResolveProvider` — longest-prefix-first matching
+  - [x] Unknown provider name (prefix maps to an unregistered sender) throws
+        `SmsException`, even with console fallback enabled (`RoutingSmsSenderTests`)
+  - [x] `SmsOptions.ResolveProvider` — matching, no-match → null, empty map → null,
+        and longest-prefix-first (`+1204` beats `+1`) (`SmsOptionsTests`)
 - [ ] Integration tests: Testcontainers Postgres + migration fixture (platform pattern),
       `MessageLogs` write-on-success and write-on-failure paths
 - [ ] Provider senders behind fakes — verify request shapes for Corvass/WABA/FCM
