@@ -82,3 +82,7 @@ app.UseCorrelationId();
 app.UseAuthorization();
 app.MapControllers();
 app.Run();
+
+// Exposed so WebApplicationFactory<Program> can host the app in integration tests.
+// Top-level-statement programs are otherwise internal and can't be used as the generic arg.
+public partial class Program { }

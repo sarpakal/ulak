@@ -145,3 +145,37 @@ throw new SmsException(..., lastEx);
 ```
 Lesson: an exception *filter* (`when`) that references the loop counter silently changes
 behavior on the boundary iteration. Prefer catching unconditionally and branching inside.
+
+---
+
+## 5. Npgsql / EFCore.Design version drift is a latent CS1705 — harmless until a consumer compiles against EF types
+
+**Context:** `Messenger.Infrastructure.csproj` references `Microsoft.EntityFrameworkCore.Design`
+`10.0.7` and `Npgsql.EntityFrameworkCore.PostgreSQL` `10.0.1`. Npgsql `10.0.1` depends on EF
+Core `10.0.4`, so Infrastructure is *compiled* against EF Core `10.0.7` (from Design) while its
+primary EF Core reference resolves to `10.0.4`.
+
+**Symptom**
+The main solution builds with only an `MSB3277` warning ("Found conflicts between different
+versions of Microsoft.EntityFrameworkCore"). But when a new project references Infrastructure
+**and uses EF types directly** (e.g. `Messenger.Tests` calling `MessengerDbContext` /
+`MigrateAsync` for the integration tests), the warning escalates to a hard build error:
+`CS1705: Assembly 'Messenger.Infrastructure' uses 'Microsoft.EntityFrameworkCore, Version=10.0.7.0'
+which has a higher version than referenced assembly '…10.0.4.0'`.
+
+**Root Cause**
+The package set drifted: `EFCore.Design` was bumped to `10.0.7` without moving Npgsql (whose EF
+Core pin lags at `10.0.4`). CLAUDE.md's rule "EF Core + Npgsql versions move together" was not
+followed on that bump.
+
+**Exact Fix (applied)**
+Test-project-local pin so the consumer resolves the same EF Core the Infrastructure assembly was
+built against — without touching Infrastructure's packages (a coordinated upgrade is the real fix
+but out of scope for the test work):
+```xml
+<PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.7" />
+<PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.7" />
+```
+**Proper fix (tracked):** realign `Messenger.Infrastructure` so `EFCore.Design`, `EFCore`, and
+`Npgsql.EntityFrameworkCore.PostgreSQL` all sit on one consistent EF Core version, per the
+move-together rule. Until then, every EF-touching consumer of Infrastructure needs the pin above.

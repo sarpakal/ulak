@@ -47,7 +47,8 @@
 
 ## Phase 4 — Testing (open)
 
-`Messenger.Tests` scaffolded (xUnit v3 + FluentAssertions, in `Messenger.slnx`).
+`Messenger.Tests` scaffolded (xUnit v3 + FluentAssertions + Testcontainers, in
+`Messenger.slnx`). 12 tests, all passing (10 unit + 2 integration).
 
 - [x] Unit tests: `RoutingSmsSender` + `SmsOptions` (10 tests, all passing)
   - [x] Fallback behaviour — unmatched prefix throws `SmsException` when
@@ -67,8 +68,14 @@
         `SmsException`, even with console fallback enabled (`RoutingSmsSenderTests`)
   - [x] `SmsOptions.ResolveProvider` — matching, no-match → null, empty map → null,
         and longest-prefix-first (`+1204` beats `+1`) (`SmsOptionsTests`)
-- [ ] Integration tests: Testcontainers Postgres + migration fixture (platform pattern),
-      `MessageLogs` write-on-success and write-on-failure paths
+- [x] Integration tests: Testcontainers Postgres + migration fixture (platform pattern),
+      `MessageLogs` write-on-success and write-on-failure paths (`PostgresFixture`,
+      `MessagesApiTests`). `POST /api/messages/sms` is driven end-to-end against a real
+      `postgres:16-alpine` container with the SMS provider swapped for a fake ISmsSender;
+      asserts 200 + `Sent` log on success and 500 + `Failed` log on send failure.
+      Required `public partial class Program` in `Program.cs` and (test-project only) an
+      EF Core 10.0.7 pin to resolve a pre-existing Npgsql/EFCore.Design version drift
+      that surfaces as CS1705 once the test compiles against EF types.
 - [ ] Provider senders behind fakes — verify request shapes for Corvass/WABA/FCM
 
 ---
