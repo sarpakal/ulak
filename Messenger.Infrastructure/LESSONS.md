@@ -182,3 +182,36 @@ pin. Lesson: a `PrivateAssets=all` package (like `EFCore.Design`) does **not** f
 version to consumers, so if it is the only thing pulling your real EF Core version, add an explicit
 public `Microsoft.EntityFrameworkCore` reference alongside it. Keep `EFCore` and `EFCore.Relational`
 on the same version, and confirm the Npgsql provider's floor is ≤ that version.
+
+---
+
+## 6. Corvass returns HTTP 200 on rejection — check `Response.code` in the body (and it's case-inconsistent)
+
+**Context:** `CorvassSmsSender` POSTs to `sms.corvass.net/json` and originally only checked
+`response.IsSuccessStatusCode`.
+
+**Symptom**
+A production outage where `POST /api/messages/sms` returned `200 "SMS sent"` for ~2 weeks while
+**nothing was delivered**. The API key was unresolved (wrong `.env` key path), so Corvass rejected
+every request — but returned **HTTP 200** with the error in the body, so the sender reported success.
+
+**Root Cause**
+Corvass signals the real result in the response body, not the HTTP status:
+- Success: `{"Response":{"code":0,"description":"Başarılı İşlem"},"PacketId":330182333}`
+- Failure: `{"Response":{"Code":9999,"Description":"Hatalı / geçersiz authentication bilgisi"}}`
+
+Two traps: (1) HTTP 200 on failure; (2) the field is cased **`code`** on success but **`Code`** on
+failure. A case-sensitive parse would miss the failure code entirely.
+
+**Exact Fix**
+After the transport-level status check, deserialize the body **case-insensitively**
+(`PropertyNameCaseInsensitive = true`) and throw unless `Response.code == 0`:
+```csharp
+var code = result?.Response?.Code;      // int?, from a case-insensitive deserialize
+if (code != 0)
+    throw new HttpRequestException($"Corvass rejected the SMS (code {code}): {result?.Response?.Description}");
+```
+The throw propagates through `RoutingSmsSender`'s retry loop → `SmsException` → controller 500 +
+`Failed` log, so a rejected send now fails loudly. General rule: for any provider that can return a
+non-2xx *result* inside a 2xx *response*, validate the body, not just the status — otherwise a
+provider-side rejection is indistinguishable from success.

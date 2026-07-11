@@ -18,8 +18,11 @@ namespace Messenger.Tests;
 /// </summary>
 public class ProviderSenderTests
 {
-    // Captures the request and its body, then returns 200 so the sender's success check passes.
-    private sealed class CapturingHandler : HttpMessageHandler
+    // Captures the request and its body, then returns 200 with the given body. Defaults to a
+    // Corvass success payload (Response.code == 0) so the Corvass sender's body check passes;
+    // WhatsApp/FCM ignore the body.
+    private sealed class CapturingHandler(
+        string responseJson = """{"Response":{"code":0,"description":"OK"},"PacketId":1}""") : HttpMessageHandler
     {
         public HttpRequestMessage? Request { get; private set; }
         public string Body { get; private set; } = "";
@@ -35,7 +38,7 @@ public class ProviderSenderTests
 
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new StringContent("{}"),
+                Content = new StringContent(responseJson),
             };
         }
     }
@@ -81,6 +84,25 @@ public class ProviderSenderTests
         Prop(root, "originator").GetString().Should().Be("AKAL YNT.");
         Prop(root, "messageType").GetString().Should().Be("B");
         Prop(root, "recipientType").GetString().Should().Be("BIREYSEL");
+    }
+
+    [Fact]
+    public async Task Corvass_NonZeroResponseCode_Throws()
+    {
+        // Corvass returns HTTP 200 even on rejection — the failure signal is Response.Code != 0,
+        // and it cases the field differently (uppercase `Code`) than on success. The sender must
+        // still catch it (case-insensitive), or a rejected send is silently reported as success.
+        var handler = new CapturingHandler(
+            """{"Response":{"Code":9999,"Description":"Hatalı / geçersiz authentication bilgisi"}}""");
+        var sender = new CorvassSmsSender(
+            new HttpClient(handler),
+            Options.Create(new CorvassOptions { SmsUrl = "https://corvass.test/json" }),
+            NullLogger<CorvassSmsSender>.Instance);
+
+        var act = () => sender.SendAsync(new SmsMessage(["+905551112233"], "hi"));
+
+        (await act.Should().ThrowAsync<HttpRequestException>())
+            .Which.Message.Should().Contain("9999");
     }
 
     [Fact]
