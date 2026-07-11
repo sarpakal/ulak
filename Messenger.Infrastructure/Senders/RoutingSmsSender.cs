@@ -12,7 +12,10 @@ namespace Messenger.Infrastructure.Senders;
 ///   +1  → Twilio   (US/CA lines)
 ///
 /// Recipients with different prefixes in a single message are split and dispatched separately.
-/// Falls back to ConsoleSmsService if no prefix matches (dev safety net).
+/// If no prefix matches, throws <see cref="SmsException"/> — unless Sms:AllowConsoleFallback
+/// is true (dev only), in which case it logs to ConsoleSmsService. This fail-closed default
+/// prevents silent message loss in production (an unmatched number would otherwise be dropped
+/// with an HTTP 200).
 /// Throws <see cref="SmsException"/> if all retry attempts fail for any group.
 /// </summary>
 public class RoutingSmsSender : ISmsSender
@@ -39,15 +42,16 @@ public class RoutingSmsSender : ISmsSender
 
     public async Task SendAsync(SmsMessage message, CancellationToken cancellationToken = default)
     {
-        // Group recipients by provider so a mixed-prefix batch fans out correctly
-        var groups = message.To.GroupBy(n => _options.ResolveProvider(n) ?? "Console");
+        // Group recipients by provider so a mixed-prefix batch fans out correctly.
+        // Keep null for unmatched prefixes — Resolve decides throw-vs-console, loudly.
+        var groups = message.To.GroupBy(n => _options.ResolveProvider(n));
 
         foreach (var group in groups)
         {
-            var providerName = group.Key;
-            var sender = Resolve(providerName);
+            var providerName = group.Key;                 // null = no prefix matched
+            var sender = Resolve(providerName, group);
             var batch = message with { To = group.ToList() };
-            await SendWithRetryAsync(sender, batch, providerName, cancellationToken);
+            await SendWithRetryAsync(sender, batch, providerName ?? "Console", cancellationToken);
         }
     }
 
@@ -88,11 +92,22 @@ public class RoutingSmsSender : ISmsSender
             lastEx);
     }
 
-    private ISmsSender Resolve(string providerName) => providerName switch
+    private ISmsSender Resolve(string? providerName, IEnumerable<string> recipients) => providerName switch
     {
         "Corvass" => _corvass,
         "Twilio"  => _twilio,
-        _         => _console,
+
+        // No prefix matched: console only if explicitly allowed (dev), else fail loud.
+        null when _options.AllowConsoleFallback => _console,
+        null => throw new SmsException(
+            string.Join(", ", recipients), "none",
+            "No SMS provider matches the recipient prefix and console fallback is disabled. " +
+            "Check Sms:ProviderPrefixes."),
+
+        // A prefix mapped to a provider name we have no sender for = config bug, never console.
+        _ => throw new SmsException(
+            string.Join(", ", recipients), providerName,
+            $"Sms:ProviderPrefixes maps to unknown provider '{providerName}' — no sender is registered."),
     };
 }
 

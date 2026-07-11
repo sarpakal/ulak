@@ -22,8 +22,11 @@
       Decide: nginx IP allowlist (cheapest), static API key middleware, or Auth.Api JWT
       validation per calling service. At minimum, ship the nginx allowlist now.
 - [ ] Rate limiting on `/api/messages/*` (pattern: Auth.Api's `auth-by-ip` policy)
-- [ ] Throw on unmatched SMS prefix in production instead of `ConsoleSmsService` fallback
-      (silent message loss with HTTP 200 — [Infrastructure LESSONS](Messenger.Infrastructure/LESSONS.md))
+- [x] Throw on unmatched SMS prefix in production instead of `ConsoleSmsService` fallback
+      (silent message loss with HTTP 200 — [Infrastructure LESSONS](Messenger.Infrastructure/LESSONS.md)).
+      `RoutingSmsSender.Resolve` now throws `SmsException` on unmatched prefix and on unknown
+      provider name; console fallback is gated behind `Sms:AllowConsoleFallback` (dev only,
+      default `false` so prod is fail-closed).
 - [ ] `MessageLogs` retention job (pattern: Auth.Api `AuditRetentionJob`) — payloads are PII
 - [ ] Remove dead `Messaging:CorvassApi` config section everywhere (live binding is `Corvass:`)
 
@@ -44,10 +47,16 @@
 
 ## Phase 4 — Testing (open)
 
-No test projects exist yet.
+`Messenger.Tests` scaffolded (xUnit v3 + FluentAssertions, in `Messenger.slnx`).
 
-- [ ] Unit tests: `RoutingSmsSender` (prefix grouping, retry exhaustion, fallback behaviour),
-      `SmsOptions.ResolveProvider`
+- [ ] Unit tests: `RoutingSmsSender`
+  - [x] Fallback behaviour — unmatched prefix throws `SmsException` when
+        `Sms:AllowConsoleFallback` is false; routes to console when true
+        (`RoutingSmsSenderTests`)
+  - [ ] Prefix grouping — mixed-prefix batch fans out per provider
+  - [ ] Retry exhaustion — `SmsException` after `RetryCount + 1` attempts
+  - [ ] Unknown provider name (prefix maps to an unregistered sender) throws
+  - [ ] `SmsOptions.ResolveProvider` — longest-prefix-first matching
 - [ ] Integration tests: Testcontainers Postgres + migration fixture (platform pattern),
       `MessageLogs` write-on-success and write-on-failure paths
 - [ ] Provider senders behind fakes — verify request shapes for Corvass/WABA/FCM

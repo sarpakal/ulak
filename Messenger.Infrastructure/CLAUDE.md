@@ -26,7 +26,7 @@ Provider implementations + EF Core + DI module. Implements `Messenger.Core` inte
 |------|--------|-------------|
 | `TwilioClient.Init()` in `TwilioSmsSender` ctor | Global SDK state mutated per request scope — credential race under concurrency | Init once in `Program.cs` ([LESSONS](LESSONS.md) #1) |
 | `RoutingSmsSender` injects concrete `CorvassSmsSender`/`TwilioSmsSender` | Untestable, unextendable | Keyed DI when a 3rd provider arrives ([LESSONS](LESSONS.md) #2) — do **not** add a third concrete field |
-| `ConsoleSmsService` as production fallback for unknown prefixes | HTTP 200 + no delivery = silent message loss | Throw on unmatched prefix in prod ([LESSONS](LESSONS.md) #3, [ROADMAP](../ROADMAP.md) Phase 2) |
+| ~~`ConsoleSmsService` as production fallback for unknown prefixes~~ | ~~HTTP 200 + no delivery = silent message loss~~ | ✅ **Fixed** — `RoutingSmsSender.Resolve` throws `SmsException` on unmatched prefix and unknown provider name; console gated behind `Sms:AllowConsoleFallback` (dev only, default `false`). ([LESSONS](LESSONS.md) #3, [ROADMAP](../ROADMAP.md) Phase 2) |
 
 ---
 

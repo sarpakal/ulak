@@ -22,4 +22,5 @@
     <Project Path="Messenger.Core/Messenger.Core.csproj" />
     <Project Path="Messenger.Infrastructure/Messenger.Infrastructure.csproj" />
   </Folder>
+  <Project Path="Messenger.Tests/Messenger.Tests.csproj" />
 </Solution>

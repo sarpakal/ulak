@@ -85,3 +85,23 @@ throw new InvalidOperationException(
 Gate the `ConsoleSmsService` registration behind `IsDevelopment()` (or remove it from the
 production DI path). The resulting HTTP 500 is the correct signal: the operator is missing
 config for the requested destination. Tracked in [ROADMAP](../ROADMAP.md) Phase 2.
+
+**Resolution (2026-07-10)** — Fixed, but *not* via environment-gated registration as
+originally proposed above. Gating on `IsDevelopment()` reproduces the same failure class: it
+depends on `ASPNETCORE_ENVIRONMENT` being correct on the VPS, so a misset env var silently
+restores the console fallback. Instead the fallback is now fail-closed by default:
+
+- `SmsOptions.AllowConsoleFallback` (default `false`). Absence of config → safe.
+- `RoutingSmsSender.SendAsync` no longer coerces unmatched prefixes to `"Console"` — it keeps
+  the `null` from `ResolveProvider` and lets `Resolve` decide.
+- `RoutingSmsSender.Resolve` throws `SmsException` on an unmatched prefix (`null`) unless
+  `AllowConsoleFallback` is true, **and** throws on a prefix that maps to a provider name with
+  no registered sender (e.g. `+44` → `"Vodafone"`) — the old `_ => _console` default silently
+  swallowed that config-mismatch case too.
+- `Sms:AllowConsoleFallback: true` set only in `appsettings.Development.json`. Base and
+  Production appsettings are untouched.
+
+`MessagesController.SendSms` already rethrows on send failure, so the `SmsException` surfaces
+as HTTP 500 with a `Failed` `MessageLog` row — no controller change was needed. Using
+`SmsException` (not `InvalidOperationException`) keeps the provider/recipient context that the
+router's other failure paths already carry.

@@ -11,6 +11,13 @@ public class SmsOptions
     public int RetryDelayMs { get; init; } = 1000;
 
     /// <summary>
+    /// Dev-only. When true, recipients whose prefix matches no provider are logged to
+    /// console instead of being sent. MUST stay false in production — true means silent
+    /// message loss with an HTTP 200. Defaults to false so absence of config is fail-safe.
+    /// </summary>
+    public bool AllowConsoleFallback { get; init; } = false;
+
+    /// <summary>
     /// Maps E.164 phone prefix → provider name.
     /// e.g. { "+90": "Corvass", "+1": "Twilio" }
     /// Matched longest-prefix-first so +901 won't accidentally match +90.
