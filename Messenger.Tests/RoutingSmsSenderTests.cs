@@ -1,3 +1,4 @@
+using System.Net;
 using FluentAssertions;
 using Messenger.Core.DTOs;
 using Messenger.Core.Models;
@@ -11,11 +12,14 @@ namespace Messenger.Tests;
 public class RoutingSmsSenderTests
 {
     // Standard routing table: +90 → Corvass, +1 → Twilio. A +44 number matches neither.
-    private static RoutingSmsSender BuildSender(bool allowConsoleFallback)
+    private static RoutingSmsSender BuildSender(
+        bool allowConsoleFallback,
+        HttpClient? corvassHttp = null,
+        int retryCount = 0)
     {
         var smsOptions = Options.Create(new SmsOptions
         {
-            RetryCount = 0,
+            RetryCount = retryCount,
             RetryDelayMs = 0,
             AllowConsoleFallback = allowConsoleFallback,
             ProviderPrefixes = new Dictionary<string, string>
@@ -26,11 +30,11 @@ public class RoutingSmsSenderTests
         });
 
         // Concrete senders are required by RoutingSmsSender's constructor (LESSONS #2 debt).
-        // For unmatched-prefix routing they are never invoked — Resolve throws before dispatch —
-        // so dummy credentials that construct without a network call are sufficient.
+        // Tests that only exercise routing never invoke them; the retry test injects a
+        // stubbed HttpClient into Corvass so its SendAsync fails deterministically.
         var corvass = new CorvassSmsSender(
-            new HttpClient(),
-            Options.Create(new CorvassOptions()),
+            corvassHttp ?? new HttpClient(),
+            Options.Create(new CorvassOptions { SmsUrl = "https://corvass.invalid/json" }),
             NullLogger<CorvassSmsSender>.Instance);
 
         var twilio = new TwilioSmsSender(
@@ -41,6 +45,22 @@ public class RoutingSmsSenderTests
 
         return new RoutingSmsSender(
             corvass, twilio, console, smsOptions, NullLogger<RoutingSmsSender>.Instance);
+    }
+
+    // Counts calls and always returns the given status so CorvassSmsSender throws each attempt.
+    private sealed class CountingHandler(HttpStatusCode status) : HttpMessageHandler
+    {
+        public int Calls { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Calls++;
+            return Task.FromResult(new HttpResponseMessage(status)
+            {
+                Content = new StringContent("provider failure"),
+            });
+        }
     }
 
     [Fact]
@@ -66,5 +86,24 @@ public class RoutingSmsSenderTests
         var act = () => sender.SendAsync(message);
 
         await act.Should().NotThrowAsync();
+    }
+
+    [Fact]
+    public async Task SendAsync_ProviderFailsEveryAttempt_ThrowsSmsExceptionAfterRetryExhaustion()
+    {
+        // Corvass returns 500 on every call → CorvassSmsSender throws each attempt.
+        // With RetryCount = 2 the router should try 3 times, then surface SmsException.
+        var handler = new CountingHandler(HttpStatusCode.InternalServerError);
+        var sender = BuildSender(
+            allowConsoleFallback: false,
+            corvassHttp: new HttpClient(handler),
+            retryCount: 2);
+        var message = new SmsMessage(["+905551112233"], "hello");
+
+        var act = () => sender.SendAsync(message);
+
+        var ex = (await act.Should().ThrowAsync<SmsException>()).Which;
+        ex.ProviderName.Should().Be("Corvass");
+        handler.Calls.Should().Be(3); // RetryCount (2) + 1 initial attempt
     }
 }

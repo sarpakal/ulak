@@ -105,3 +105,43 @@ restores the console fallback. Instead the fallback is now fail-closed by defaul
 as HTTP 500 with a `Failed` `MessageLog` row — no controller change was needed. Using
 `SmsException` (not `InvalidOperationException`) keeps the provider/recipient context that the
 router's other failure paths already carry.
+
+---
+
+## 4. Retry loop lost provider context on the final attempt — `SmsException` was dead code
+
+**Context:** `RoutingSmsSender.SendWithRetryAsync` retries a failing provider `RetryCount + 1`
+times, then (per its XML doc and [ROADMAP](../ROADMAP.md) Phase 1 "SmsException with provider
+context") is meant to throw `SmsException` wrapping the last failure.
+
+**Symptom**
+After all retries were exhausted, callers received the raw provider exception
+(`HttpRequestException` from `CorvassSmsSender`) instead of `SmsException` — losing the
+provider name and recipient list. Surfaced by `SendAsync_ProviderFailsEveryAttempt_...` in
+`RoutingSmsSenderTests` (added 2026-07-10), which asserted the documented `SmsException`.
+
+**Root Cause**
+The catch used an exception filter: `catch (Exception ex) when (attempt < totalAttempts)`.
+On the **last** attempt the filter is false, so the catch never fires — the provider
+exception propagates straight out of the method and the `throw new SmsException(...)` after
+the loop is unreachable on the failure path (dead code). It only ever "worked" when
+`RetryCount` produced ≥2 attempts *and* a caller happened not to distinguish exception types.
+
+**Exact Fix**
+Catch every attempt and gate the retry/delay on attempts remaining, so `lastEx` is always
+captured and the loop falls through to the wrapping throw:
+```csharp
+catch (Exception ex)
+{
+    lastEx = ex;
+    if (attempt < totalAttempts)
+    {
+        _logger.LogWarning(ex, "...Retrying in {Delay}ms...", attempt, providerName, _options.RetryDelayMs);
+        await Task.Delay(_options.RetryDelayMs, ct);
+    }
+}
+// ... loop ends ...
+throw new SmsException(..., lastEx);
+```
+Lesson: an exception *filter* (`when`) that references the loop counter silently changes
+behavior on the boundary iteration. Prefer catching unconditionally and branching inside.

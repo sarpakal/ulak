@@ -75,13 +75,19 @@ public class RoutingSmsSender : ISmsSender
                 await sender.SendAsync(message, ct);
                 return;
             }
-            catch (Exception ex) when (attempt < totalAttempts)
+            catch (Exception ex)
             {
+                // Catch every attempt (including the last) so the final failure is wrapped
+                // in SmsException with provider context — not surfaced as the raw provider
+                // exception. Only retry/delay while attempts remain.
                 lastEx = ex;
-                _logger.LogWarning(ex,
-                    "SMS attempt {Attempt} failed via {Provider}. Retrying in {Delay}ms...",
-                    attempt, providerName, _options.RetryDelayMs);
-                await Task.Delay(_options.RetryDelayMs, ct);
+                if (attempt < totalAttempts)
+                {
+                    _logger.LogWarning(ex,
+                        "SMS attempt {Attempt} failed via {Provider}. Retrying in {Delay}ms...",
+                        attempt, providerName, _options.RetryDelayMs);
+                    await Task.Delay(_options.RetryDelayMs, ct);
+                }
             }
         }
 

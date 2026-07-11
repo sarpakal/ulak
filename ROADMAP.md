@@ -54,7 +54,11 @@
         `Sms:AllowConsoleFallback` is false; routes to console when true
         (`RoutingSmsSenderTests`)
   - [ ] Prefix grouping — mixed-prefix batch fans out per provider
-  - [ ] Retry exhaustion — `SmsException` after `RetryCount + 1` attempts
+  - [x] Retry exhaustion — `SmsException` (with provider context) after
+        `RetryCount + 1` attempts (`RoutingSmsSenderTests`). This test caught a bug:
+        the old catch filter `when (attempt < totalAttempts)` let the final attempt's
+        raw exception escape unwrapped, making `throw new SmsException` dead code
+        ([Infrastructure LESSONS](Messenger.Infrastructure/LESSONS.md) #4).
   - [ ] Unknown provider name (prefix maps to an unregistered sender) throws
   - [ ] `SmsOptions.ResolveProvider` — longest-prefix-first matching
 - [ ] Integration tests: Testcontainers Postgres + migration fixture (platform pattern),
