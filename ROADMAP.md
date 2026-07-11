@@ -28,7 +28,10 @@
       provider name; console fallback is gated behind `Sms:AllowConsoleFallback` (dev only,
       default `false` so prod is fail-closed).
 - [ ] `MessageLogs` retention job (pattern: Auth.Api `AuditRetentionJob`) — payloads are PII
-- [ ] Remove dead `Messaging:CorvassApi` config section everywhere (live binding is `Corvass:`)
+- [x] Remove dead `Messaging:CorvassApi` config section everywhere (live binding is `Corvass:`).
+      Deleted `CorvassApiOptions`, its `Program.cs` binding, the `appsettings.Development.json`
+      section, and all doc references ([solution LESSONS](LESSONS.md) #2, [Core LESSONS](Messenger.Core/LESSONS.md) #2).
+      Operators must still purge stale `Messaging__CorvassApi__*` keys from the live VPS `.env`.
 - [x] Patch `Microsoft.OpenApi` NU1903 (GHSA-v5pm-xwqc-g5wc, high severity). `AspNetCore.OpenApi`
       10.0.7 — and 10.0.9 — transitively pull the vulnerable `2.0.0`, and `2.0.1` is still in
       range. Fixed with a direct override to the latest 2.x (`2.10.0`) in `Messenger.Api`;

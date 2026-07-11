@@ -12,8 +12,7 @@ Messenger.Core/
 ├── DTOs/            — SmsMessage, EmailMessage, WhatsAppMessage, PushMessage (records)
 ├── Interfaces/      — ISmsSender, IEmailSender, IWhatsAppMessageSender,
 │                      IPushNotificationSender, ICorrelationContext
-├── Options/         — EmailOptions, CorvassApiOptions (legacy), WhatsAppOptions,
-│                      FcmNotificationOptions
+├── Options/         — EmailOptions, WhatsAppOptions, FcmNotificationOptions
 ├── Models/          — CorvassOptions, TwilioOptions, SmsOptions (live SMS bindings;
 │                      SmsOptions.ResolveProvider maps E.164 prefix → provider name)
 └── MessengerService.cs — facade: routes Send*Async calls to the injected channel senders

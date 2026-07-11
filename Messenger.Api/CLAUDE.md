@@ -37,7 +37,6 @@ all provider logic lives in `Messenger.Infrastructure`.
 |-----|---------|
 | `ConnectionStrings:UlakConnection` | Postgres — **fails fast if missing** |
 | `Messaging:Email` / `Messaging:Whatsapp` / `Messaging:FcmNotification` | Channel options (live) |
-| `Messaging:CorvassApi` | **Dead** — live Corvass binding is `Corvass:` in the Infrastructure module |
 
 Logging is JSON console with scopes — correlation ids appear in `docker logs ulak-service`.
 

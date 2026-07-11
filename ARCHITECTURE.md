@@ -133,8 +133,7 @@ Known design debt: `RoutingSmsSender` injects the concrete sender types, and
 | `Sms:*` | `SmsOptions` | RetryCount, RetryDelayMs, ProviderPrefixes |
 | `Messaging:Email:*` | `EmailOptions` (`Program.cs`) | SMTP host/port/sender |
 | `Messaging:Whatsapp:*` | `WhatsAppOptions` | WABA URL, key, sender number |
-| `Messaging:FcmNotification:*` | `FcmNotificationOptions` | FCM server key + endpoint |
-| `Messaging:CorvassApi:*` | `CorvassApiOptions` | **Legacy/dead** — live code reads `Corvass:`; removal pending ([LESSONS](LESSONS.md) #7) |
+| `Messaging:FcmNotification:*` | `FcmNotificationOptions` | FCM HTTP v1 project id + service-account credentials path |
 
 Never inject `IConfiguration` into services — options pattern only.
 

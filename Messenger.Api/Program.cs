@@ -23,7 +23,6 @@ builder.Services.AddHttpContextAccessor();
 
 // === 1. Load settings ===
 builder.Services.Configure<EmailOptions>(config.GetSection("Messaging:Email"));
-builder.Services.Configure<CorvassApiOptions>(config.GetSection("Messaging:CorvassApi"));
 builder.Services.Configure<WhatsAppOptions>(config.GetSection("Messaging:Whatsapp"));
 builder.Services.Configure<FcmNotificationOptions>(config.GetSection("Messaging:FcmNotification"));
 

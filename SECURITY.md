@@ -53,8 +53,8 @@ unexpected channels/recipients.
 | `Messaging:FcmNotification:ServerKey` | Push to all app users | same |
 
 - Never commit real values; `appsettings.json` ships empty strings.
-- The duplicate `Messaging:CorvassApi` section is dead config — setting secrets there
-  silently breaks Corvass sends ([LESSONS.md](LESSONS.md) #7). Live key prefix: `Corvass__*`.
+- Corvass secrets live under `Corvass__*`. (The old duplicate `Messaging:CorvassApi` dead-config
+  section — an operator trap that silently broke sends — was removed 2026-07-11, [LESSONS.md](LESSONS.md) #7.)
 - The Twilio auth token is account-wide; rotate it at Twilio if the `.env` is ever exposed.
 
 ---

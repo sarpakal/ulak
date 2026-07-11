@@ -59,17 +59,18 @@ The live code reads from `"Corvass"`. The `Messaging:CorvassApi` section is a le
 from an earlier config structure that was never cleaned up — effectively dead, but it appears
 in `appsettings.json` with matching key names.
 
-**Exact Fix**
-Remove the `Messaging:CorvassApi` section from all appsettings files and `.env` templates,
-delete `CorvassApiOptions` and its `Program.cs` binding, and keep only the `Corvass:` section:
+**Exact Fix (resolved 2026-07-11)**
+Removed the `Messaging:CorvassApi` section from the appsettings files, deleted `CorvassApiOptions`
+and its `Program.cs` binding; only the `Corvass:` section remains (bound in
+`MessengerInfrastructureModule` — no sender code change, config cleanup only):
 ```
 Corvass__SmsUrl=...
 Corvass__ApiKey=...
 Corvass__ApiSecret=...
 Corvass__Originator=AKAL YNT.
 ```
-Verify `MessengerInfrastructureModule` still binds to `"Corvass"` — no sender code change
-required, only config cleanup. Tracked in [ROADMAP.md](ROADMAP.md) Phase 2.
+Operators must still purge any stale `Messaging__CorvassApi__*` keys from the live VPS `.env`
+(the repo can't reach it). Live key prefix is `Corvass__*`.
 
 ---
 

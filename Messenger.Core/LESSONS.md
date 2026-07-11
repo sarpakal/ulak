@@ -42,8 +42,9 @@ with HTTP 401 — the live sender reads `CorvassOptions` from the `Corvass:` sec
 `CorvassApiOptions` is a remnant of an earlier config structure that was never removed after
 the `Corvass:` binding became the live path.
 
-**Exact Fix**
-Delete `CorvassApiOptions` and its `Program.cs` binding together with the
-`Messaging:CorvassApi` sections in all appsettings files; keep only `Corvass:`.
-Tracked in [ROADMAP](../ROADMAP.md) Phase 2; config-level detail in solution
-[LESSONS.md](../LESSONS.md) #7.
+**Exact Fix (resolved 2026-07-11)**
+Deleted `CorvassApiOptions` and its `Program.cs` binding together with the
+`Messaging:CorvassApi` sections in all appsettings files; only `Corvass:` remains.
+Config-level detail in solution [LESSONS.md](../LESSONS.md) #7. Lesson: a copied-in
+options type that is bound but never *read* is dead weight that actively misleads
+operators — delete it when the live binding supersedes it, don't leave it "just in case".

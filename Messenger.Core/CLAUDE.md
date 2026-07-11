@@ -28,8 +28,7 @@ Contracts only. This project must compile with **zero external dependencies**.
 |-------------|---------|----------|
 | `CorvassOptions`, `TwilioOptions`, `SmsOptions` (`Models/`) | `Corvass:` / `Twilio:` / `Sms:` | `MessengerInfrastructureModule` — **live** |
 | `EmailOptions`, `WhatsAppOptions`, `FcmNotificationOptions` (`Options/`) | `Messaging:*` | `Program.cs` — live |
-| `CorvassApiOptions` (`Options/`) | `Messaging:CorvassApi` | `Program.cs` — **dead config**, removal pending ([ROADMAP](../ROADMAP.md) Phase 2) |
 
 The `Models/` vs `Options/` folder split is historical (the `Models/` trio arrived from the
-Auth copy-paste). When the dead `CorvassApiOptions` is removed, consider consolidating into
-one folder.
+Auth copy-paste) — worth consolidating into one folder. (The dead `CorvassApiOptions` /
+`Messaging:CorvassApi` section was removed 2026-07-11.)

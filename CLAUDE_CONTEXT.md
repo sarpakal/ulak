@@ -45,7 +45,7 @@ Messenger.slnx
 ├── Messenger.Core/
 │   ├── DTOs/              — SmsMessage, EmailMessage, WhatsAppMessage, PushMessage
 │   ├── Interfaces/        — ISmsSender, IEmailSender, IWhatsAppMessageSender, IPushNotificationSender
-│   ├── Options/           — EmailOptions, CorvassApiOptions, WhatsAppOptions, FcmNotificationOptions
+│   ├── Options/           — EmailOptions, WhatsAppOptions, FcmNotificationOptions
 │   └── MessengerService.cs — Facade: routes calls to the correct channel sender
 │
 ├── Messenger.Infrastructure/

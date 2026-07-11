@@ -71,7 +71,7 @@ Messenger.slnx
 ├── Messenger.Core/                  # Contracts only — no external dependencies
 │   ├── DTOs/                        # SmsMessage, EmailMessage, WhatsAppMessage, PushMessage
 │   ├── Interfaces/                  # ISmsSender, IEmailSender, IWhatsAppMessageSender, IPushNotificationSender
-│   ├── Options/                     # EmailOptions, CorvassApiOptions, WhatsAppOptions, FcmNotificationOptions, OtpOptions
+│   ├── Options/                     # EmailOptions, WhatsAppOptions, FcmNotificationOptions, OtpOptions
 │   └── MessengerService.cs          # Facade — routes calls to the correct sender
 │
 ├── Messenger.Infrastructure/        # Provider implementations
@@ -136,9 +136,8 @@ Messenger.slnx
   },
   "Messaging": {
     "Email": { "SmtpHost": "", "SmtpPort": 587, "SenderEmail": "", "SenderPassword": "" },
-    "CorvassApi": { "SmsUrl": "", "ApiKey": "", "ApiSecret": "" },
     "Whatsapp": { "ApiUrl": "", "ApiKey": "", "SenderNumber": "" },
-    "FcmNotification": { "ServerKey": "", "FcmEndpoint": "" }
+    "FcmNotification": { "BaseUrl": "https://fcm.googleapis.com", "ProjectId": "", "CredentialsPath": "" }
   },
   "Corvass": {
     "SmsUrl": "", "ApiKey": "", "ApiSecret": "",
