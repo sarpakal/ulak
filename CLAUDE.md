@@ -295,6 +295,9 @@ outage ([Infrastructure LESSONS](Messenger.Infrastructure/LESSONS.md) #6, platfo
 Don't ship `SET_VIA_ENVIRONMENT_VARIABLE` placeholder secrets — they're non-empty, so `IsNullOrEmpty`
 fail-fast checks pass and a missing env var runs silently. Verify a new deployment with a **real
 send + delivery confirmation**, not just an HTTP 200 (Corvass returns 200 even on rejection).
+For push, a bogus-token send is a safe full-chain smoke test: `POST /api/messages/push` with a
+garbage token must return **410** `{"errorCode":"INVALID_ARGUMENT"}` (proves SA key → OAuth →
+FCM → classification); a **500** means the FCM credentials/env are broken.
 
 ### What this means for code changes
 - Configuration must support both appsettings.json (dev) and environment variables (prod).
