@@ -9,6 +9,11 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.7" />
+    <!-- Direct override: AspNetCore.OpenApi 10.0.7 (and even 10.0.9) transitively pulls the
+         vulnerable Microsoft.OpenApi 2.0.0 (NU1903 / GHSA-v5pm-xwqc-g5wc), and 2.0.1 is still
+         in range. Pin the latest 2.x — patched, and forward-compatible within the major.
+         OpenApi is dev-only here (MapOpenApi behind IsDevelopment()), so the surface is small. -->
+    <PackageReference Include="Microsoft.OpenApi" Version="2.10.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.7">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
