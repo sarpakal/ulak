@@ -244,6 +244,35 @@ Never commit real secrets. Use `dotnet user-secrets` in development.
 4. If `deploy/Dockerfile` changes: also update `~/apps/ulak-messenger/Dockerfile` and redeploy.
 5. If `deploy/nginx/ulak.conf` changes: also update `/etc/nginx/sites-enabled/apis.conf` and run `nginx -s reload`.
 
+> **Env-only changes need `--force-recreate`.** `docker compose up -d` does **not** reload
+> `env_file` *content* changes — it only recreates on compose-config/image changes, so an edited
+> `.env` leaves the old container running with stale values (a code deploy recreates as a side
+> effect, so this only bites env-only edits). After editing `~/apps/ulak-messenger/.env`, run
+> `docker compose up -d --force-recreate ulak-messenger` and verify:
+> `docker exec ulak-service printenv | grep -i <KEY>`. (Cost a multi-hour SMS outage — see
+> platform [LESSONS.md](../LESSONS.md).)
+
+### Production environment variables (`~/apps/ulak-messenger/.env`)
+
+The env-var name must match the code's **exact** config-binding path (`__` → `:`). Note the
+**inconsistency**: Email/WhatsApp/FCM bind under `Messaging:`, but **Corvass / Twilio / Sms bind at
+the root** — putting SMS creds under `Messaging__…` (a plausible-looking convention) binds to
+nothing and the sender falls back to placeholders. This exact mistake caused a silent ~2-week
+outage ([Infrastructure LESSONS](Messenger.Infrastructure/LESSONS.md) #6, platform LESSONS).
+
+| Env key | Binds to | Notes |
+|---------|----------|-------|
+| `ConnectionStrings__UlakConnection` | `ConnectionStrings:UlakConnection` | required — fails fast if missing |
+| `Messaging__Email__{SmtpHost,SmtpPort,SenderEmail,SenderPassword}` | `Messaging:Email` → `EmailOptions` | under `Messaging:` ✓ |
+| `Corvass__{SmsUrl,ApiKey,ApiSecret,Originator}` | **`Corvass:`** (root) → `CorvassOptions` | **not** under `Messaging:` |
+| `Twilio__{AccountSid,AuthToken,FromNumber}` | **`Twilio:`** (root) → `TwilioOptions` | **not** under `Messaging:` |
+| `Sms__ProviderPrefixes__+90` / `__+1` | **`Sms:ProviderPrefixes`** (root) | usually baked in `appsettings.Production.json` |
+| `Messaging__FcmNotification__{ProjectId,CredentialsPath}` | `Messaging:FcmNotification` → `FcmNotificationOptions` | optional; FCM HTTP v1 needs a service-account JSON, fail-fast at send if unset |
+
+Don't ship `SET_VIA_ENVIRONMENT_VARIABLE` placeholder secrets — they're non-empty, so `IsNullOrEmpty`
+fail-fast checks pass and a missing env var runs silently. Verify a new deployment with a **real
+send + delivery confirmation**, not just an HTTP 200 (Corvass returns 200 even on rejection).
+
 ### What this means for code changes
 - Configuration must support both appsettings.json (dev) and environment variables (prod).
 - Never hardcode URLs, ports, or credentials.
