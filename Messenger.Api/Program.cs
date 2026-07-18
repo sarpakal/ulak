@@ -79,6 +79,19 @@ app.UsePathBase("/messenger");
 // Correlation id middleware should run early so subsequent middleware and controllers log the id
 app.UseCorrelationId();
 app.UseAuthorization();
+
+// Health endpoint (anonymous). ULAK already serves a root "/" via MessagesController.Index,
+// so we add only /health here (mapping "/" too would be a duplicate-route conflict).
+// monitors poll /health, which also verifies database connectivity.
+app.MapGet("/health", async (Messenger.Infrastructure.Data.MessengerDbContext db, CancellationToken ct) =>
+{
+    var dbUp = await db.Database.CanConnectAsync(ct);
+    return dbUp
+        ? Results.Ok(new { status = "healthy", service = "Messenger.Api", db = "up" })
+        : Results.Json(new { status = "unhealthy", service = "Messenger.Api", db = "down" },
+            statusCode: StatusCodes.Status503ServiceUnavailable);
+}).AllowAnonymous();
+
 app.MapControllers();
 app.Run();
 
