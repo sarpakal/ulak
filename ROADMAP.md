@@ -18,16 +18,30 @@
 
 ## Phase 2 — Security hardening (open — see [SECURITY.md](SECURITY.md))
 
-- [ ] **Add authentication** — the API is currently publicly callable with no credentials.
-      Decide: nginx IP allowlist (cheapest), static API key middleware, or Auth.Api JWT
-      validation per calling service. At minimum, ship the nginx allowlist now.
+- [ ] **Add authentication** — decide between static API key middleware or Auth.Api JWT
+      validation per calling service. Still open; the allowlist below is a network-layer
+      mitigation, not app-level auth (dev IPs are dynamic — an API key is the better long-term
+      fit for dev-machine access).
+  - [x] **Nginx IP allowlist on `/api/messages/*`** (2026-07-17). `location /api/messages/`
+        in `deploy/nginx/ulak.conf` (mirrored into live `apis.conf`) now `allow`s only
+        `172.19.0.0/16` (apps_appnet containers — the workhorse caller), `172.18.0.0/16`
+        (n8n), `127.0.0.1`, and the two dev-machine IPs; `deny all` otherwise. Allow set is
+        log-derived (2 weeks of access logs), not guessed. `/health` stays public (falls
+        through to `location /`). Verified: allowlisted → 200, non-allowlisted → 403, health → 200.
 - [ ] Rate limiting on `/api/messages/*` (pattern: Auth.Api's `auth-by-ip` policy)
 - [x] Throw on unmatched SMS prefix in production instead of `ConsoleSmsService` fallback
       (silent message loss with HTTP 200 — [Infrastructure LESSONS](Messenger.Infrastructure/LESSONS.md)).
       `RoutingSmsSender.Resolve` now throws `SmsException` on unmatched prefix and on unknown
       provider name; console fallback is gated behind `Sms:AllowConsoleFallback` (dev only,
       default `false` so prod is fail-closed).
-- [ ] `MessageLogs` retention job (pattern: Auth.Api `AuditRetentionJob`) — payloads are PII
+- [x] `MessageLogs` retention job (2026-07-17). `MessageLogRetentionJob` (`BackgroundService` in
+      `Messenger.Infrastructure/Retention/`) runs 30s after startup then every `RunIntervalHours`,
+      deleting rows older than `RetentionDays` via `ExecuteDeleteAsync` (`MessageLogRetentionService`).
+      Config section `MessageLogRetention` (`Enabled`/`RunIntervalHours`/`RetentionDays`, defaults
+      true/24/90). Fail-safe: `RetentionDays < 1` skips (never wipes the table). Registered in
+      `MessengerInfrastructureModule` (added `Microsoft.Extensions.Hosting.Abstractions` 10.0.9).
+      No manual HTTP trigger — the endpoint surface is unauthenticated (SECURITY.md). Follows the
+      Auth.Api `AuditRetentionJob` pattern.
 - [x] Remove dead `Messaging:CorvassApi` config section everywhere (live binding is `Corvass:`).
       Deleted `CorvassApiOptions`, its `Program.cs` binding, the `appsettings.Development.json`
       section, and all doc references ([solution LESSONS](LESSONS.md) #2, [Core LESSONS](Messenger.Core/LESSONS.md) #2).
@@ -87,7 +101,7 @@
 ## Phase 4 — Testing (open)
 
 `Messenger.Tests` scaffolded (xUnit v3 + FluentAssertions + Testcontainers, in
-`Messenger.slnx`). 31 tests, all passing (25 unit + 6 integration).
+`Messenger.slnx`). 33 tests, all passing (25 unit + 8 integration).
 
 - [x] Unit tests: `RoutingSmsSender` + `SmsOptions` (10 tests, all passing)
   - [x] Fallback behaviour — unmatched prefix throws `SmsException` when
