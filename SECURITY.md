@@ -70,8 +70,10 @@ Every send writes `Channel`, `Recipient`, `Payload` (SMS text / email subject / 
 - **Payloads may contain secrets** — if OTP dispatch is ever consolidated through ULAK
   (roadmap candidate), `Payload` would contain live OTP codes. Callers must assume message
   bodies are persisted.
-- There is **no retention job** — `MessageLogs` grows unbounded. A retention policy
-  (pattern: Auth.Api's `AuditRetentionJob`) is on the roadmap.
+- **Retention:** as of 2026-07-17 a background `MessageLogRetentionJob` deletes rows older than
+  `MessageLogRetention:RetentionDays` (default 90) every `RunIntervalHours` (default 24), so
+  `MessageLogs` no longer grows unbounded. It fails safe — a `RetentionDays < 1` misconfiguration
+  skips the run rather than wiping the table. Tune the window per data-minimisation needs.
 
 ---
 
@@ -103,6 +105,7 @@ Every send writes `Channel`, `Recipient`, `Payload` (SMS text / email subject / 
 - No authentication on any endpoint (see above) — highest priority.
 - No rate limiting — combined with no auth, the API is a free SMS cannon until fixed.
 - `ConsoleSmsService` production fallback converts misconfiguration into silent message loss.
-- No `MessageLogs` retention; payloads (PII) accumulate indefinitely.
+- ~~No `MessageLogs` retention; payloads (PII) accumulate indefinitely.~~ **Fixed 2026-07-17** —
+  `MessageLogRetentionJob` prunes rows past the configured window (default 90 days).
 - `TwilioClient.Init()` per-request global mutation is a credential race under concurrency.
 - No test coverage of routing or failure paths.

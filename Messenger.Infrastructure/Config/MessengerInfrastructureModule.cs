@@ -2,6 +2,7 @@ using Messenger.Core.Models;
 using Messenger.Core;
 using Messenger.Core.Interfaces;
 using Messenger.Core.Options;
+using Messenger.Infrastructure.Retention;
 using Messenger.Infrastructure.Senders;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -51,6 +52,12 @@ namespace Messenger.Infrastructure.Config
 
             // ── Messenger facade ──────────────────────────────────────────────
             services.AddScoped<MessengerService>();
+
+            // ── MessageLog retention (PII cleanup — see SECURITY.md) ──────────
+            services.Configure<MessageLogRetentionOptions>(
+                configuration.GetSection(MessageLogRetentionOptions.SectionName));
+            services.AddScoped<IMessageLogRetentionService, MessageLogRetentionService>();
+            services.AddHostedService<MessageLogRetentionJob>();
 
             return services;
         }
