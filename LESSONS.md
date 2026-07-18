@@ -138,3 +138,36 @@ enabled by explicit config, never by environment name.
 asserted the *documented contract* (`SmsException` after exhaustion), not the observed
 behaviour. Write contract-first assertions — they catch code that silently drifted from its
 own doc comment.
+
+---
+
+## 5. Never place an nginx backup file inside `sites-enabled/` — the whole directory is `include`d
+
+**Context:** While adding the `/api/messages/*` IP allowlist to the live `ulak.akgyh.com` server
+block (2026-07-17), the config edit was backed up with
+`cp apis.conf /etc/nginx/sites-enabled/apis.conf.bak.$(date …)` — i.e. the backup landed in the
+same directory as the file being edited.
+
+**Symptom**
+`nginx -t` failed with `duplicate upstream "auth_api" in …/apis.conf.bak.…:6` — an error that
+had nothing to do with the edit. Because the reload was guarded by `nginx -t`, it never fired
+(no outage), but the automatic rollback *also* failed the same way, briefly looking like the
+edit was un-revertible.
+
+**Root Cause**
+`nginx.conf` includes the enabled-sites directory with a glob (`include
+/etc/nginx/sites-enabled/*;`). A `*.bak` file in that directory is a real config file to nginx,
+so every `upstream`, `server`, and `location` in it is parsed a *second* time → duplicate
+definitions → `[emerg]`. The backup poisons `nginx -t` for the whole node, not just its own vhost.
+
+**Exact Fix**
+Keep nginx backups **outside** any included directory:
+```bash
+mkdir -p /root/nginx-backups
+cp /etc/nginx/sites-enabled/apis.conf /root/nginx-backups/apis.conf.$(date +%Y%m%d-%H%M%S)
+# edit apis.conf in place → nginx -t → nginx -s reload  (rollback: cp back from /root/nginx-backups)
+```
+**Rule:** the include glob defines a namespace, not a folder for loose files. Backups, disabled
+variants (`*.disabled`), and scratch copies must live somewhere `nginx.conf` does not `include`.
+The repo mirror (`deploy/nginx/ulak.conf`) is edited separately and kept in sync with the live
+`apis.conf` ulak section per [CLAUDE.md](CLAUDE.md).

@@ -18,9 +18,16 @@
 
 ## Phase 2 — Security hardening (open — see [SECURITY.md](SECURITY.md))
 
-- [ ] **Add authentication** — the API is currently publicly callable with no credentials.
-      Decide: nginx IP allowlist (cheapest), static API key middleware, or Auth.Api JWT
-      validation per calling service. At minimum, ship the nginx allowlist now.
+- [ ] **Add authentication** — decide between static API key middleware or Auth.Api JWT
+      validation per calling service. Still open; the allowlist below is a network-layer
+      mitigation, not app-level auth (dev IPs are dynamic — an API key is the better long-term
+      fit for dev-machine access).
+  - [x] **Nginx IP allowlist on `/api/messages/*`** (2026-07-17). `location /api/messages/`
+        in `deploy/nginx/ulak.conf` (mirrored into live `apis.conf`) now `allow`s only
+        `172.19.0.0/16` (apps_appnet containers — the workhorse caller), `172.18.0.0/16`
+        (n8n), `127.0.0.1`, and the two dev-machine IPs; `deny all` otherwise. Allow set is
+        log-derived (2 weeks of access logs), not guessed. `/health` stays public (falls
+        through to `location /`). Verified: allowlisted → 200, non-allowlisted → 403, health → 200.
 - [ ] Rate limiting on `/api/messages/*` (pattern: Auth.Api's `auth-by-ip` policy)
 - [x] Throw on unmatched SMS prefix in production instead of `ConsoleSmsService` fallback
       (silent message loss with HTTP 200 — [Infrastructure LESSONS](Messenger.Infrastructure/LESSONS.md)).

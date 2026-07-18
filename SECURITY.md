@@ -19,25 +19,27 @@ ULAK must prevent:
 
 ---
 
-## ⚠️ Current state: the API is unauthenticated
+## Current state: network-layer allowlist in place; no app-level auth yet
 
-`Program.cs` registers **no authentication or authorization** (the `Add Authentication & JWT`
-section is an empty placeholder) and `deploy/nginx/ulak.conf` applies **no IP allowlist** —
-`https://ulak.akgyh.com/api/messages/*` is publicly callable by anyone on the internet.
+`Program.cs` still registers **no authentication or authorization** (the `Add Authentication & JWT`
+section is an empty placeholder). As of **2026-07-17**, however, `deploy/nginx/ulak.conf`
+(mirrored into the live `apis.conf`) restricts `/api/messages/*` with an nginx `allow`/`deny`
+allowlist — only the `apps_appnet` container subnet (`172.19.0.0/16`), the n8n subnet
+(`172.18.0.0/16`), `127.0.0.1`, and two known dev-machine IPs may send; everyone else gets `403`.
+`/health` stays public for monitoring. The allow set was derived from 2 weeks of access logs.
 
-Mitigations in place today:
-- The URL is not advertised; callers are platform services and n8n on the same VPS.
-- Provider spend limits (Corvass account balance, Twilio limits) cap the blast radius.
+This closes the "free SMS cannon" exposure at the network layer, but it is **not** app-level
+authentication:
+- Any host that lands inside the allowed subnets (or spoofs a dev IP on-path) can still send.
+- Dev-machine IPs are dynamic residential addresses — they need updating if they change.
 
-This is **the** outstanding security gap. Options, in increasing order of effort
-(tracked in [ROADMAP.md](ROADMAP.md)):
-1. Nginx `allow`/`deny` on the `ulak.akgyh.com` server block (VPS-internal callers only) —
-   note n8n and platform containers reach it via the internal route, so external exposure
-   may be removable outright.
-2. Static API key header checked by middleware (`X-Api-Key` from `~/apps/.env`).
+Remaining options, in increasing order of effort (tracked in [ROADMAP.md](ROADMAP.md)):
+1. ~~Nginx `allow`/`deny`~~ — **done** (see above).
+2. Static API key header checked by middleware (`X-Api-Key` from `~/apps/.env`) — better fit
+   for dev-machine access than a hardcoded IP.
 3. Auth.Api-issued JWT validation (`app_code` claim per calling service).
 
-Until one lands: treat the ULAK URL itself as a secret and monitor `MessageLogs` for
+Until app-level auth lands: keep the ULAK URL unadvertised and monitor `MessageLogs` for
 unexpected channels/recipients.
 
 ---
